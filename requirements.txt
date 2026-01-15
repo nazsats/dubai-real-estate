@@ -1,0 +1,15 @@
+
+## Requirements
+
+```txt
+flask
+flask-cors
+requests
+python-dotenv
+psycopg2-binary
+langchain
+langchain-community
+langchain-openai
+langchain-classic          # for legacy memory classes
+streamlit                  # for the chat UI
+openai
