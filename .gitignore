@@ -1,0 +1,33 @@
+# Python / Streamlit / LangChain common ignores
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment variables & secrets
+.env
+*.env.*
+.env.local
+.env.development
+.env.production
+
+# Streamlit cache
+.streamlit/
+streamlit_cache/
+
+# Logs & temp files
+*.log
+temp/
+tmp/
+
+# macOS / Windows junk
+.DS_Store
+Thumbs.db
