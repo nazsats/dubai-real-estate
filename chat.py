@@ -1,9 +1,13 @@
+# chat.py – Modern Streamlit Chat UI for Dubai Property Agent
+# Run with: streamlit run chat.py
+
 import streamlit as st
 import requests
-import json
+import time
+from datetime import datetime
 
 # ────────────────────────────────────────────────
-# Page config & title
+# Page config – looks like a real app
 # ────────────────────────────────────────────────
 st.set_page_config(
     page_title="Dubai Property Finder",
@@ -12,93 +16,142 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.title("🏠 Dubai Real Estate Assistant")
+# Custom CSS – modern dark/light mode support
 st.markdown("""
-Ask anything about properties in Dubai:  
-• 2 bedroom apartments in Dubai Marina under 3 million AED  
-• Luxury villas in Palm Jumeirah above 20 million  
-• 3 bedroom townhouses ready possession in Dubai Hills Estate  
-• Penthouses in Downtown Dubai  
-""")
+    <style>
+    .stApp {
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        color: white;
+    }
+    .stChatMessage.user {
+        background: linear-gradient(90deg, #00c6ff, #0072ff);
+        color: white;
+        border-radius: 18px 18px 4px 18px;
+    }
+    .stChatMessage.assistant {
+        background: #1e1e2e;
+        color: #e0e0ff;
+        border-radius: 18px 18px 18px 4px;
+    }
+    .stChatInput input {
+        background: #1e1e2e !important;
+        color: white !important;
+        border: 1px solid #444 !important;
+    }
+    .stButton>button {
+        background: #00c6ff;
+        color: white;
+        border: none;
+    }
+    .stButton>button:hover {
+        background: #0099cc;
+    }
+    .example-btn {
+        margin: 4px;
+        background: #2a2a4a !important;
+        color: #a0a0ff !important;
+    }
+    .example-btn:hover {
+        background: #3a3a6a !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ────────────────────────────────────────────────
-# Sidebar info
+# Title & description
+# ────────────────────────────────────────────────
+st.title("🏙️ Dubai Property Finder")
+st.markdown("Ask naturally — find apartments, villas, townhouses & penthouses in Dubai instantly.")
+
+# ────────────────────────────────────────────────
+# Sidebar – status & quick actions
 # ────────────────────────────────────────────────
 with st.sidebar:
-    st.header("About")
-    st.markdown("""
-    This is a natural language search agent for Dubai properties.  
-    Powered by LangChain + GPT-4o-mini + PostgreSQL  
-    """)
+    st.header("Dubai Property AI")
+    st.markdown("Powered by **LangChain** + **GPT-4o-mini** + **PostgreSQL**")
     
-    st.markdown("**Backend status**")
+    # Backend status
+    st.markdown("**Backend Status**")
     try:
-        r = requests.get("http://127.0.0.1:5000/", timeout=3)
-        if r.status_code in [200, 405]:
-            st.success("Flask backend is running")
+        r = requests.get("http://127.0.0.1:5000/health", timeout=3)
+        if r.status_code == 200:
+            st.success("Backend is healthy ✅")
         else:
-            st.warning(f"Backend responded with status {r.status_code}")
+            st.warning(f"Status: {r.status_code}")
     except:
-        st.error("Flask backend not detected on port 5000")
+        st.error("Backend not running (port 5000)")
 
-    st.markdown("**Tips**")
-    st.info("Be specific about location, type, bedrooms, price range, possession status")
+    st.markdown("**Quick Examples**")
+    examples = [
+        "2 bedroom apartments in Dubai Marina under 3 million AED",
+        "Luxury villas Palm Jumeirah above 25 million",
+        "3 bed townhouse ready possession Dubai Hills Estate",
+        "Penthouse Downtown Dubai Burj Khalifa view",
+        "Cheapest 1 bedroom in JVC",
+        "Villas in Emirates Hills with 5+ bedrooms"
+    ]
+
+    for ex in examples:
+        if st.button(ex, key=ex, use_container_width=True, type="secondary"):
+            st.session_state.prompt = ex
+
+    if st.button("Clear Chat History", type="primary"):
+        st.session_state.messages = []
+        st.rerun()
 
 # ────────────────────────────────────────────────
-# Chat history (persistent across reruns)
+# Chat history
 # ────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for msg in st.session_state.messages:
+    role = "user" if msg["role"] == "user" else "assistant"
+    with st.chat_message(role):
+        st.markdown(msg["content"])
 
 # ────────────────────────────────────────────────
-# User input
+# Input + send
 # ────────────────────────────────────────────────
-if prompt := st.chat_input("What kind of property are you looking for in Dubai?"):
-    
-    # Add user message to history & display
+prompt = st.chat_input("Ask about Dubai properties... (e.g. 2 bed in Marina under 3M)")
+
+# Auto-fill from quick example button
+if "prompt" in st.session_state:
+    prompt = st.session_state.prompt
+    del st.session_state.prompt
+
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Show assistant "thinking" placeholder
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.markdown("Searching properties... ⏳")
+        with st.spinner("Searching Dubai properties..."):
+            try:
+                response = requests.post(
+                    "http://127.0.0.1:5000/query",
+                    json={"query": prompt},
+                    timeout=60
+                )
+                response.raise_for_status()
+                data = response.json()
 
-        try:
-            # Call your Flask backend
-            response = requests.post(
-                "http://127.0.0.1:5000/query",
-                json={"query": prompt},
-                timeout=45
-            )
-            response.raise_for_status()
-            data = response.json()
+                if "error" in data:
+                    st.error(data["error"])
+                else:
+                    answer = data.get("response", "No answer received")
+                    sql = data.get("sql")
 
-            if "error" in data:
-                full_response = f"**Error:** {data['error']}"
-            else:
-                full_response = data.get("response", "No response received.")
-                
-                # Improve readability
-                full_response = full_response.replace("\n", "  \n")
+                    st.markdown(answer.replace("\n", "  \n"))
 
-                # Show SQL in expander if present
-                if sql := data.get("sql"):
-                    full_response += "\n\n" + f"**Generated SQL:**  \n```sql\n{sql}\n```"
+                    if sql:
+                        with st.expander("See generated SQL"):
+                            st.code(sql, language="sql")
 
-            # Replace placeholder with final answer
-            message_placeholder.markdown(full_response)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer + (f"\n\n**SQL:**\n```sql\n{sql}\n```" if sql else "")
+                })
 
-            # Save assistant response to history
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-        except requests.exceptions.RequestException as e:
-            error_msg = f"**Connection failed:** {str(e)}\n\nMake sure your Flask server is running on port 5000."
-            message_placeholder.error(error_msg)
-            st.session_state.messages.append({"role": "assistant", "content": error_msg})
+            except Exception as e:
+                st.error(f"Error: {str(e)}\nIs the backend running on port 5000?")
