@@ -1,13 +1,8 @@
-# dubai_property_agent.py
-# ────────────────────────────────────────────────────────────────
-# Real Estate Query Agent for Dubai – Flask + LangChain + PostgreSQL
-# FIXED: stronger prompt forces SQL tool usage, spell correction, context continuity
-
 import os
 import time
 import logging
 import random
-from typing import Optional
+from typing import List, Dict, Any
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -17,17 +12,15 @@ from psycopg2 import OperationalError
 
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
-from langchain_community.agent_toolkits import create_sql_agent
-from langchain_community.agent_toolkits import SQLDatabaseToolkit
+from langchain_community.agent_toolkits import create_sql_agent, SQLDatabaseToolkit
 
-from langchain_classic.memory import ConversationBufferMemory
-from langchain_core.prompts import PromptTemplate
-from langchain_classic.agents import AgentType
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 
 from dotenv import load_dotenv
 
 # ────────────────────────────────────────────────
-# Load environment & logging
+# Environment & Logging
 # ────────────────────────────────────────────────
 load_dotenv()
 
@@ -44,12 +37,12 @@ DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 MAX_SAMPLE_ROWS = int(os.getenv("MAX_SAMPLE_ROWS", "5000"))
 
 if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY missing")
+    raise ValueError("OPENAI_API_KEY is missing")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL missing")
+    raise ValueError("DATABASE_URL is missing")
 
 # ────────────────────────────────────────────────
-# Flask + CORS
+# Flask app
 # ────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -67,14 +60,14 @@ def get_db_connection(retries=3, delay=2):
     raise Exception("Failed to connect to PostgreSQL after retries")
 
 try:
-    db = SQLDatabase.from_uri(DATABASE_URL)
+    db = SQLDatabase.from_uri(DATABASE_URL, sample_rows_in_table_info=3)
     logger.info("PostgreSQL connection established")
 except Exception as e:
     logger.error(f"Database connection failed: {e}")
     raise
 
 # ────────────────────────────────────────────────
-# Generate ~5,000 realistic properties (only if needed)
+# Initialize sample data if table is small
 # ────────────────────────────────────────────────
 def init_database():
     conn = get_db_connection()
@@ -99,7 +92,7 @@ def init_database():
         if count >= 4000:
             logger.info(f"Table already has {count:,} rows – skipping sample generation")
         else:
-            logger.info(f"Generating {MAX_SAMPLE_ROWS:,} sample properties...")
+            logger.info(f"Generating ~{MAX_SAMPLE_ROWS:,} sample properties...")
             locations = [
                 'Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Dubai Hills Estate',
                 'Business Bay', 'Jumeirah Village Circle', 'Arabian Ranches', 'Emirates Hills',
@@ -158,7 +151,7 @@ def init_database():
 init_database()
 
 # ────────────────────────────────────────────────
-# LLM & Agent
+# LLM + Toolkit
 # ────────────────────────────────────────────────
 llm = ChatOpenAI(
     model="gpt-4o-mini",
@@ -170,74 +163,68 @@ llm = ChatOpenAI(
 
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
-memory = ConversationBufferMemory(
-    memory_key="chat_history",
-    return_messages=True
-)
+# ────────────────────────────────────────────────
+# Chat-style prompt (required for openai-tools agent type)
+# ────────────────────────────────────────────────
+prompt = ChatPromptTemplate.from_messages([
+    ("system", """You are a helpful real estate assistant for **Dubai properties only**.
 
-# STRONGER PROMPT – forces tool use for data queries
-safety_prompt = PromptTemplate.from_template(
-    """You are a helpful real estate assistant for Dubai properties only.
+Strict rules you must follow:
+- If the question is unrelated to Dubai real estate (apartments, villas, townhouses, penthouses, prices in AED, bedrooms, locations like Dubai Marina, Palm Jumeirah, Downtown, JVC, JLT, possession status, availability), reply ONLY: "Sorry, I can only help with Dubai real estate searches." Do NOT say anything else.
+- For ANY question that asks to find, list, filter, compare, sort, count or show properties — ALWAYS use the sql_db_query tool. Do NOT guess or answer without querying the database.
+- Table name: properties
+- Columns: id, location, price, type, bedrooms, available, possession
+- Always add LIMIT 12 unless the user explicitly asks for more results.
+- Format prices nicely (e.g. 2,500,000 AED)
+- If no matching properties are found, suggest ways to broaden the search (higher budget, nearby areas, different property type, etc.)
+"""),
+    MessagesPlaceholder(variable_name="messages", optional=True),   # ← conversation history
+    ("human", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),          # ← REQUIRED for openai-tools
+])
 
-    Rules you MUST follow:
-    - If the question is unrelated to Dubai real estate (apartments, villas, townhouses, penthouses, prices in AED, bedrooms, locations like Dubai Marina, Palm Jumeirah, Downtown, JVC, JLT, possession status, availability), reply ONLY: "Sorry, I can only help with Dubai real estate searches." Do NOT say anything else.
-    - For ANY question that asks to find, list, filter, compare, sort, count, or show properties — ALWAYS use the sql_db_query tool to search the properties table. Do NOT guess, summarize from memory, or answer without querying.
-    - Use conversation history for follow-up questions (e.g. "are they all ready?" refers to previous results).
-    - Be precise and return real data from the database when possible.
-
-    Tools available: sql_db_query (run SELECT queries on properties table), others if needed.
-
-    {agent_scratchpad}
-
-    Current user query: {input}
-
-    Think step-by-step:
-    1. Is this about Dubai real estate? If no → reply with sorry message.
-    2. Does it need data from the properties table? If yes → MUST use sql_db_query tool.
-    3. Plan your SQL query carefully (use SELECT only).
-    4. Return the final answer based on tool results.
-
-    Final answer:"""
-)
-
-agent = create_sql_agent(
+# ────────────────────────────────────────────────
+# Create SQL agent
+# ────────────────────────────────────────────────
+agent_executor = create_sql_agent(
     llm=llm,
     toolkit=toolkit,
-    verbose=True,  # ← set to True to see full thinking steps in console
-    agent_type=AgentType.OPENAI_FUNCTIONS,
-    memory=memory,
+    verbose=True,
+    agent_type="openai-tools",
+    prompt=prompt,
     handle_parsing_errors=True,
-    prompt=safety_prompt,
-    max_iterations=15,  # ← increased so it doesn't stop early
+    max_iterations=12,
+    early_stopping_method="force"
 )
 
 # ────────────────────────────────────────────────
-# AI-powered spell & grammar correction
+# Spell & grammar correction helper
 # ────────────────────────────────────────────────
 def correct_spelling_and_grammar(text: str) -> str:
     try:
-        prompt = f"""
-Fix spelling, grammar, and typos in this real-estate query about Dubai properties.
-Keep location names, brand names, and abbreviations exactly as they are.
+        fix_prompt = f"""
+Fix spelling, grammar, and typos in this Dubai real-estate query.
+Keep location names, area abbreviations and proper nouns exactly as written.
+
 Examples:
-- "dubai marena" → "Dubai Marina"
-- "2 bedrom aprtment in jumeriah" → "2 bedroom apartment in Jumeirah"
-- "penthause downtwon" → "penthouse Downtown"
-- "chpestnms apartmant 1 bhk in marini" → "cheapest apartment 1 bhk in Marina"
+- "dubai marena"      → "Dubai Marina"
+- "2 bedrom aprtment" → "2 bedroom apartment"
+- "chepest 1 bhk jvc" → "cheapest 1 bedroom in JVC"
+- "penthuse downtwon" → "penthouse Downtown"
 
 Only return the corrected query — nothing else.
 
 Original query: {text}
+
 Corrected query:
 """.strip()
 
-        response = llm.invoke(prompt)
+        response = llm.invoke(fix_prompt)
         corrected = response.content.strip()
         logger.info(f"Spell-corrected: '{text}' → '{corrected}'")
-        return corrected if corrected else text
-
-    except Exception as e:
-        logger.warning(f"Spell correction failed: {e}")
+        return corrected or text
+    except Exception:
+        logger.warning("Spell correction failed")
         return text
 
 # ────────────────────────────────────────────────
@@ -252,52 +239,76 @@ def health():
         "sample_rows": MAX_SAMPLE_ROWS
     })
 
+
 @app.route("/query", methods=["POST"])
 def handle_query():
     start = time.perf_counter()
+
     try:
         data = request.get_json()
-        original_query = data.get("query", "").strip()
+        original_query: str = data.get("query", "").strip()
+        history: List[Dict[str, str]] = data.get("history", [])
 
         if not original_query:
             return jsonify({"error": "Query is required"}), 400
 
-        logger.info(f"Original query received: {original_query}")
+        logger.info(f"Query: {original_query} | History messages: {len(history)}")
 
-        # Step 1: AI-powered spell & grammar correction
+        # 1. Correct spelling/grammar
         user_query = correct_spelling_and_grammar(original_query)
 
-        # Step 2: Run the agent
-        result = agent.invoke({"input": user_query})
+        # 2. Convert history to LangChain messages
+        messages: List[Any] = []
+        for msg in history:
+            role = msg.get("role", "").lower()
+            content = msg.get("content", "")
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
 
-        output = result["output"]
-        sql = None
+        # 3. Run agent
+        result = agent_executor.invoke({
+            "input": user_query,
+            "messages": messages
+        })
 
-        if "intermediate_steps" in result:
-            for step in result["intermediate_steps"]:
-                if isinstance(step, tuple) and len(step) >= 2:
-                    action, _ = step
-                    if hasattr(action, "tool") and action.tool == "sql_db_query":
-                        sql = action.tool_input
+        output = result.get("output", "No response generated")
 
-        if "no " in output.lower() and any(w in output.lower() for w in ["result", "found", "match"]):
-            output += "\n\nWould you like to broaden the search?"
+        # 4. Try to extract the SQL query that was used
+        sql_used = None
+        intermediate_steps = result.get("intermediate_steps", [])
+        for step in intermediate_steps:
+            if isinstance(step, tuple) and len(step) >= 2:
+                action = step[0]
+                if hasattr(action, "tool") and action.tool == "sql_db_query":
+                    tool_input = action.tool_input
+                    if isinstance(tool_input, dict) and "query" in tool_input:
+                        sql_used = tool_input["query"]
+                    elif isinstance(tool_input, str):
+                        sql_used = tool_input
+                    break
+
+        # 5. Improve empty result UX
+        if any(w in output.lower() for w in ["no ", "0 ", "none"]) and "result" in output.lower():
+            output += "\n\nTip: Try increasing the budget, removing some filters, or checking nearby areas."
 
         elapsed = time.perf_counter() - start
-        logger.info(f"Processed in {elapsed:.2f}s | SQL: {sql}")
+        logger.info(f"Processed in {elapsed:.2f}s | SQL: {sql_used}")
 
         return jsonify({
             "response": output,
-            "sql": sql,
+            "sql": sql_used,
             "elapsed_seconds": round(elapsed, 2)
         })
 
     except Exception as e:
-        logger.exception("Query error")
+        logger.exception("Query processing error")
         return jsonify({"error": str(e)}), 500
 
+
 # ────────────────────────────────────────────────
-# Run Flask
+# Run server
 # ────────────────────────────────────────────────
 if __name__ == "__main__":
     if DEBUG:

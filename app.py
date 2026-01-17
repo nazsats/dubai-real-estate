@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 
 # ────────────────────────────────────────────────
-# Page config – looks professional & app-like
+# Page config
 # ────────────────────────────────────────────────
 st.set_page_config(
     page_title="Dubai Property Finder",
@@ -84,7 +84,7 @@ st.markdown("Intelligent real estate search for Dubai — ask naturally in plain
 # ────────────────────────────────────────────────
 with st.sidebar:
     st.header("Dubai Property AI")
-    st.markdown("Powered by **LangChain** + **GPT-4o-mini** + **PostgreSQL** (5,000+ listings)")
+    st.markdown("Powered by **LangChain** + **GPT-4o-mini** + **PostgreSQL**")
 
     # Backend health
     st.markdown("**Connection Status**")
@@ -110,6 +110,7 @@ with st.sidebar:
     for ex in examples:
         if st.button(ex, key=f"ex_{ex}", use_container_width=True, type="secondary"):
             st.session_state.current_prompt = ex
+            st.rerun()  # Important: force rerun to process the example immediately
 
     st.markdown("---")
     if st.button("Clear Chat History", type="primary", use_container_width=True):
@@ -128,16 +129,16 @@ with st.sidebar:
         )
 
 # ────────────────────────────────────────────────
-# Persistent chat (session + optional file backup)
+# Persistent chat
 # ────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_id" not in st.session_state:
     st.session_state.chat_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-# Show history in sidebar
+# Show recent history in sidebar
 with st.sidebar.expander("Past Conversations", expanded=False):
-    for msg in st.session_state.messages[:10]:  # last 10 only
+    for msg in st.session_state.messages[-10:]:  # last 10
         short = msg["content"][:60] + "..." if len(msg["content"]) > 60 else msg["content"]
         st.markdown(f"**{msg['role'].capitalize()}**: {short}")
 
@@ -148,28 +149,32 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Auto-fill from quick example
-prompt = st.chat_input("Ask about Dubai properties...")
+# Chat input + auto-fill from example
+prompt = st.chat_input("Ask about Dubai properties... (e.g. villas under 10M in Palm Jumeirah)")
 
 if "current_prompt" in st.session_state:
     prompt = st.session_state.current_prompt
     del st.session_state.current_prompt
 
 if prompt:
-    # Add user message
+    # Add user message to chat
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Assistant response
+    # Get assistant response
     with st.chat_message("assistant"):
         placeholder = st.empty()
         placeholder.markdown("Searching Dubai properties... ⏳")
 
         try:
+            # Send full conversation history + current query
             response = requests.post(
                 "http://127.0.0.1:5000/query",
-                json={"query": prompt},
+                json={
+                    "query": prompt,
+                    "history": st.session_state.messages  # full list of dicts
+                },
                 timeout=60
             )
             response.raise_for_status()
@@ -181,31 +186,37 @@ if prompt:
                 answer = data.get("response", "No response received")
                 sql = data.get("sql")
 
-                # Make answer more informative
+                # Optional: nicer formatting if properties are found
                 if "found" in answer.lower() or "match" in answer.lower():
                     lines = answer.split("\n")
                     matches = [l for l in lines if "AED" in l or "bedroom" in l.lower()]
                     if matches:
-                        full_response = f"**Found {len(matches)} matching properties**\n\n"
-                        full_response += "\n".join(lines)
+                        full_response = f"**Found {len(matches)} matching properties**\n\n" + answer
                     else:
                         full_response = answer
                 else:
                     full_response = answer
 
-                # Show SQL
+                # Show generated SQL for transparency
                 if sql:
-                    full_response += "\n\n<details><summary>Generated SQL (for transparency)</summary>\n```sql\n" + sql + "\n```\n</details>"
+                    full_response += "\n\n<details><summary>Generated SQL</summary>\n```sql\n" + sql + "\n```\n</details>"
 
             placeholder.markdown(full_response)
 
+            # Save to history
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": full_response
             })
 
         except Exception as e:
-            placeholder.error(f"Connection failed: {str(e)}\nMake sure backend is running on port 5000.")
+            error_msg = f"Connection failed: {str(e)}\nMake sure backend is running on port 5000."
+            placeholder.error(error_msg)
+            # Still save to history so chat looks consistent
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"**Error:** {str(e)}"
+            })
 
 # Footer
 st.markdown("---")

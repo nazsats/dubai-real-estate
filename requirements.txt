@@ -13,3 +13,11 @@ langchain-openai
 langchain-classic          # for legacy memory classes
 streamlit                  # for the chat UI
 openai
+folium
+streamlit-folium
+speech_recognition         # for voice
+pgvector                   # via pip install psycopg2 with pgvector support
+speechrecognition          # pip install SpeechRecognition
+pyaudio                    # needed for microphone (pip install pyaudio)
+
+
