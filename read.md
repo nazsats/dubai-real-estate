@@ -1,27 +1,48 @@
-# Dubai Property Finder Agent
+# Dubai Property Finder AI Agent
 
-A production-ready **natural language real-estate search agent** for properties in Dubai.
+A production-ready **natural language real-estate search agent** designed exclusively for properties in Dubai. 
 
-Ask questions like:
+This agent uses LangChain and OpenAI to convert your plain English questions into safe SQL, queries a PostgreSQL database, and returns highly detailed formatted results.
 
-- "Find 2 bedroom apartments in Dubai Marina under 3 million AED"
-- "Luxury villas in Palm Jumeirah above 20 million"
-- "3 bedroom townhouses in Dubai Hills Estate ready possession"
-- "Penthouse in Downtown Dubai with Burj Khalifa view"
+## 🌟 Key Features
 
-The agent converts your question into safe SQL, queries a PostgreSQL database, and returns formatted results.
+- **Natural Language to SQL:** Ask complex questions in plain english (e.g. *"Find 3-bedroom penthouses in Downtown Dubai with a pool and gym under 15 million AED."*)
+- **Rich Data & Amenities:** The database schema tracks exact building names, square footage, Price per SqFt calculations, and boolean amenities (Pool, Gym, Balcony).
+- **Interactive Maps (`folium`):** The agent automatically detects location names in its answers and renders a Folium map visualization directly in the chat feed!
+- **Voice Search (`SpeechRecognition`):** Use your microphone to dictate questions—perfect for quick, hands-free property hunting.
+- **Premium UI:** Built with Streamlit, the app features a sleek, dark-themed responsive UI with glassmorphism, glowing micro-animations, and 'Outfit' typography.
+- **Guardrails & Memory:** The AI remembers conversation context and automatically blocks DROP/DELETE injections or non-Dubai real estate queries.
 
-Built with **LangChain** + **OpenAI** + **Flask** + **PostgreSQL**
+## 🛠️ Tech Stack
+- **Backend:** Flask, PostgreSQL, `psycopg2`
+- **AI & Logic:** LangChain Core/Community/OpenAI, GPT-4o-mini
+- **Frontend:** Streamlit, `streamlit-folium`
+- **Voice:** `SpeechRecognition`, `pyaudio`
 
-## Features
+## 🚀 Quickstart Guide
 
-- Natural language to SQL conversion using LangChain agent
-- Conversation memory (remembers previous questions in the same session)
-- Basic guardrails (only Dubai property-related queries allowed)
-- SQL safety check (blocks DROP/DELETE/UPDATE/INSERT etc.)
-- Simple REST API endpoint `/query`
-- Nice chat-style web UI via Streamlit (`chat.py`)
-- Sample Dubai real-estate data (2025–2026 realistic prices)
-- CORS enabled for local frontend development
+### 1. Requirements
+Ensure you have a PostgreSQL server running locally, and an OpenAI API key. Add them to your `.env` file:
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/postgres
+OPENAI_API_KEY=sk-xxxxxxx
+```
 
-## Project Structure
+### 2. Installation
+Install the dependencies listed in `requirements.txt`:
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run the Backend (Data + Agent API)
+First, start the Flask backend. On the first run, the script will automatically create the PostgreSQL table and generate ~5,000 highly realistic rows of property data!
+```bash
+python dubai_property_agent.py
+```
+
+### 4. Run the Frontend UI
+In a new terminal window, start the Streamlit app:
+```bash
+streamlit run app.py
+```
+Enjoy your new intelligent real estate agent!
