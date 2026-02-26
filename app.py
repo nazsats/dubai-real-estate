@@ -4,6 +4,9 @@ import json
 import time
 from datetime import datetime
 import os
+import folium
+from streamlit_folium import st_folium
+import speech_recognition as sr
 
 # ────────────────────────────────────────────────
 # Page config
@@ -15,60 +18,96 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Modern dark theme + custom styling
+# Premium Dark Theme + Custom Styling
 st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Outfit', sans-serif;
+    }
+
     .stApp {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+        background: radial-gradient(circle at top right, #1a1a2e 0%, #0f0c29 50%, #08081a 100%);
         color: #e0e0ff;
     }
+    
     section[data-testid="stSidebar"] {
-        background: #1a1a2e;
-        border-right: 1px solid #333;
+        background: rgba(22, 22, 40, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
     }
+
     .stChatMessage {
         border-radius: 16px;
-        padding: 12px 16px;
-        margin: 8px 0;
+        padding: 16px 20px;
+        margin: 12px 0;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.03);
     }
+    
     .user {
-        background: linear-gradient(90deg, #00c6ff, #0072ff);
+        background: linear-gradient(135deg, #00c6ff, #0072ff);
         color: white;
         border-bottom-right-radius: 4px;
+        animation: slideInRight 0.3s ease-out;
     }
+    
     .assistant {
-        background: #16213e;
+        background: rgba(30, 30, 50, 0.6);
+        backdrop-filter: blur(10px);
         color: #d0d0ff;
         border-bottom-left-radius: 4px;
+        border-left: 3px solid #00c6ff;
+        animation: slideInLeft 0.3s ease-out;
     }
+
     .stChatInput > div > div > input {
-        background: #0f0c29 !important;
+        background: rgba(15, 12, 41, 0.8) !important;
         color: white !important;
-        border: 1px solid #444 !important;
+        border: 1px solid rgba(0, 198, 255, 0.4) !important;
         border-radius: 24px !important;
+        transition: all 0.3s ease;
     }
+    .stChatInput > div > div > input:focus {
+        border-color: #00c6ff !important;
+        box-shadow: 0 0 15px rgba(0, 198, 255, 0.3);
+    }
+
+    /* Buttons */
     .stButton > button {
-        background: #00c6ff;
+        background: linear-gradient(90deg, #00c6ff, #0072ff);
         color: white;
         border: none;
         border-radius: 24px;
-        padding: 10px 20px;
+        padding: 10px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
     }
     .stButton > button:hover {
-        background: #0099cc;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
     }
-    .example-btn {
-        background: #2a2a4a !important;
-        color: #a0a0ff !important;
-        border-radius: 12px !important;
-        margin: 4px 0 !important;
+    
+    .stButton > button[kind="secondary"] {
+        background: rgba(40, 40, 70, 0.6) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        box-shadow: none;
     }
-    .stats-card {
-        background: #1e1e2e;
-        padding: 16px;
-        border-radius: 12px;
-        margin: 12px 0;
-        border: 1px solid #333;
+    .stButton > button[kind="secondary"]:hover {
+        background: rgba(60, 60, 100, 0.8) !important;
+        border-color: #00c6ff !important;
+    }
+
+    @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -103,14 +142,33 @@ with st.sidebar:
         "Luxury villas in Palm Jumeirah above 25 million",
         "3 bed townhouse ready possession Dubai Hills Estate",
         "Cheapest 1 bedroom in JVC",
-        "Penthouses in Downtown Dubai with Burj Khalifa view",
-        "Villas in Emirates Hills with 5+ bedrooms"
+        "Penthouses in Downtown Dubai with Burj Khalifa view"
     ]
 
     for ex in examples:
         if st.button(ex, key=f"ex_{ex}", use_container_width=True, type="secondary"):
             st.session_state.current_prompt = ex
             st.rerun()  # Important: force rerun to process the example immediately
+
+    st.markdown("---")
+    
+    st.markdown("**Voice Search** 🎙️")
+    if st.button("🔴 Speak Now", use_container_width=True):
+        r = sr.Recognizer()
+        with sr.Microphone() as source:
+            st.info("Listening... Speak your query (e.g., 'Villas in Dubai Marina')")
+            try:
+                audio = r.listen(source, timeout=5, phrase_time_limit=10)
+                st.success("Audio captured! Transcribing...")
+                text = r.recognize_google(audio)
+                st.session_state.current_prompt = text
+                st.rerun()
+            except sr.WaitTimeoutError:
+                st.error("Listening timed out. Please try again.")
+            except sr.UnknownValueError:
+                st.error("Could not understand audio.")
+            except Exception as e:
+                st.error(f"Voice search error: {str(e)}")
 
     st.markdown("---")
     if st.button("Clear Chat History", type="primary", use_container_width=True):
@@ -143,11 +201,47 @@ with st.sidebar.expander("Past Conversations", expanded=False):
         st.markdown(f"**{msg['role'].capitalize()}**: {short}")
 
 # ────────────────────────────────────────────────
+# Map Helper
+# ────────────────────────────────────────────────
+def render_map_for_query(query_text: str, response_text: str):
+    # Rough mapping of popular areas to coordinates
+    DUBAI_LOCATIONS = {
+        "Dubai Marina": [25.0805, 55.1403],
+        "Downtown Dubai": [25.1972, 55.2744],
+        "Palm Jumeirah": [25.1124, 55.1390],
+        "Dubai Hills Estate": [25.1118, 55.2638],
+        "Business Bay": [25.1852, 55.2755],
+        "JVC": [25.0475, 55.1994],
+        "Jumeirah Village Circle": [25.0475, 55.1994],
+        "Emirates Hills": [25.0745, 55.1668]
+    }
+    
+    combined_text = (query_text + " " + response_text).lower()
+    found_locations = {name: coords for name, coords in DUBAI_LOCATIONS.items() if name.lower() in combined_text}
+
+    if found_locations:
+        st.markdown(f"📍 **Mapped Locations:** {', '.join(found_locations.keys())}")
+        # Build map centered in Dubai
+        m = folium.Map(location=[25.1500, 55.2000], zoom_start=11, tiles="CartoDB positron")
+        
+        for name, coords in found_locations.items():
+            folium.Marker(
+                coords, 
+                popup=name, 
+                tooltip=name, 
+                icon=folium.Icon(color='blue', icon='info-sign')
+            ).add_to(m)
+        
+        st_folium(m, width=700, height=400)
+
+# ────────────────────────────────────────────────
 # Main Chat Area
 # ────────────────────────────────────────────────
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if message["role"] == "assistant" and "map_query" in message:
+            render_map_for_query(message["map_query"], message["content"])
 
 # Chat input + auto-fill from example
 prompt = st.chat_input("Ask about Dubai properties... (e.g. villas under 10M in Palm Jumeirah)")
@@ -206,8 +300,12 @@ if prompt:
             # Save to history
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": full_response
+                "content": full_response,
+                "map_query": prompt
             })
+            
+            # Map rendering directly for latest response
+            render_map_for_query(prompt, full_response)
 
         except Exception as e:
             error_msg = f"Connection failed: {str(e)}\nMake sure backend is running on port 5000."

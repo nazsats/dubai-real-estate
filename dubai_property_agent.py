@@ -17,6 +17,8 @@ from langchain_community.agent_toolkits import create_sql_agent, SQLDatabaseTool
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 
+
+
 from dotenv import load_dotenv
 
 # ────────────────────────────────────────────────
@@ -78,9 +80,14 @@ def init_database():
         CREATE TABLE IF NOT EXISTS properties (
             id          SERIAL PRIMARY KEY,
             location    TEXT NOT NULL,
+            building    TEXT NOT NULL,
             price       NUMERIC NOT NULL,
             type        TEXT NOT NULL,
             bedrooms    INTEGER NOT NULL,
+            size_sqft   INTEGER NOT NULL,
+            has_pool    BOOLEAN NOT NULL,
+            has_gym     BOOLEAN NOT NULL,
+            has_balcony BOOLEAN NOT NULL,
             available   BOOLEAN NOT NULL,
             possession  TEXT NOT NULL
         );
@@ -93,9 +100,20 @@ def init_database():
             logger.info(f"Table already has {count:,} rows – skipping sample generation")
         else:
             logger.info(f"Generating ~{MAX_SAMPLE_ROWS:,} sample properties...")
-            locations = [
-                'Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Dubai Hills Estate',
-                'Business Bay', 'Jumeirah Village Circle', 'Arabian Ranches', 'Emirates Hills',
+            
+            # Map of locations to specific buildings/communities
+            location_buildings = {
+                'Dubai Marina': ['Marina Gate', 'Princess Tower', 'Cayan Tower', 'Marina Promenade', 'Silverene'],
+                'Downtown Dubai': ['Burj Khalifa', 'Address Downtown', 'Standpoint', 'The Residences', 'Boulevard Point'],
+                'Palm Jumeirah': ['Oceana', 'Tiara', 'Shoreline', 'Signature Villas', 'Garden Homes'],
+                'Dubai Hills Estate': ['Maple', 'Sidra', 'Park Heights', 'Mulberry', 'Golf Place'],
+                'Business Bay': ['Executive Towers', 'Merano Tower', 'DAMAC Towers', 'The Opus', 'Churchill Towers'],
+                'Jumeirah Village Circle': ['Seasons Community', 'District 10', 'Milano by Giovanni', 'Bloom Towers', 'Five JVC'],
+                'Arabian Ranches': ['Al Reem', 'Saheel', 'Mirador', 'Alma', 'Savannah'],
+                'Emirates Hills': ['Sector E', 'Sector L', 'Sector V', 'Sector W', 'Sector P']
+            }
+            
+            fallback_locations = [
                 'Jumeirah Beach Residence', 'Dubai Creek Harbour', 'Al Furjan', 'Meydan',
                 'Dubai South', 'Dubai Silicon Oasis', 'Al Barsha', 'Dubai Sports City',
                 'Motor City', 'Jumeirah Lake Towers', 'Dubai Investment Park'
@@ -106,37 +124,62 @@ def init_database():
 
             rows = []
             for _ in range(MAX_SAMPLE_ROWS):
-                loc = random.choice(locations)
+                # Pick Location & Building
+                if random.random() < 0.7:
+                    loc = random.choice(list(location_buildings.keys()))
+                    building = random.choice(location_buildings[loc])
+                else:
+                    loc = random.choice(fallback_locations)
+                    building = f"Generic {loc} Building"
+                
                 ptype = random.choice(types)
 
+                # Assign Size, Price, Amenities based on Type
                 if ptype == 'Villa':
                     bedrooms = random.randint(4, 7)
+                    size_sqft = random.randint(3500, 12000)
                     price = random.randint(7000000, 65000000)
+                    has_pool = random.choices([True, False], weights=[90, 10])[0]
+                    has_gym = False # Villas usually have private pool, but maybe not a gym
+                    has_balcony = True
                 elif ptype == 'Penthouse':
                     bedrooms = random.randint(3, 6)
+                    size_sqft = random.randint(3000, 8000)
                     price = random.randint(9000000, 50000000)
+                    has_pool = True
+                    has_gym = True
+                    has_balcony = True
                 elif ptype == 'Townhouse':
                     bedrooms = random.randint(3, 5)
+                    size_sqft = random.randint(2000, 4000)
                     price = random.randint(2800000, 14000000)
+                    has_pool = random.choices([True, False], weights=[40, 60])[0]
+                    has_gym = random.choices([True, False], weights=[30, 70])[0]
+                    has_balcony = True
                 else:
                     bedrooms = random.randint(1, 4)
+                    size_sqft = random.randint(600, 2500)
                     price = random.randint(800000, 18000000)
+                    has_pool = random.choices([True, False], weights=[80, 20])[0]
+                    has_gym = random.choices([True, False], weights=[85, 15])[0]
+                    has_balcony = random.choices([True, False], weights=[70, 30])[0]
 
                 price = round(price / 50000) * 50000
                 available = random.choices([True, False], weights=[80, 20])[0]
                 poss = random.choice(possessions)
 
-                rows.append((loc, price, ptype, bedrooms, available, poss))
+                rows.append((loc, building, price, ptype, bedrooms, size_sqft, has_pool, has_gym, has_balcony, available, poss))
 
             cur.executemany("""
-                INSERT INTO properties (location, price, type, bedrooms, available, possession)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO properties (location, building, price, type, bedrooms, size_sqft, has_pool, has_gym, has_balcony, available, possession)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
             """, rows)
 
             cur.execute("CREATE INDEX IF NOT EXISTS idx_location_type ON properties (location, type);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_price ON properties (price);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bedrooms ON properties (bedrooms);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_size ON properties (size_sqft);")
 
             conn.commit()
             logger.info(f"Inserted {len(rows):,} sample properties + indexes")
@@ -170,13 +213,15 @@ prompt = ChatPromptTemplate.from_messages([
     ("system", """You are a helpful real estate assistant for **Dubai properties only**.
 
 Strict rules you must follow:
-- If the question is unrelated to Dubai real estate (apartments, villas, townhouses, penthouses, prices in AED, bedrooms, locations like Dubai Marina, Palm Jumeirah, Downtown, JVC, JLT, possession status, availability), reply ONLY: "Sorry, I can only help with Dubai real estate searches." Do NOT say anything else.
-- For ANY question that asks to find, list, filter, compare, sort, count or show properties — ALWAYS use the sql_db_query tool. Do NOT guess or answer without querying the database.
+- If the question is unrelated to Dubai real estate, reply ONLY: "Sorry, I can only help with Dubai real estate searches." Do NOT say anything else.
+- For ANY question that asks to find, list, filter, compare, sort, count or show properties — ALWAYS use the sql_db_query tool. 
 - Table name: properties
-- Columns: id, location, price, type, bedrooms, available, possession
+- Columns: id, location, building, price, type, bedrooms, size_sqft, has_pool, has_gym, has_balcony, available, possession
+- If a user asks for 'Price per SqFt', calculate it in SQL as (price / size_sqft).
 - Always add LIMIT 12 unless the user explicitly asks for more results.
-- Format prices nicely (e.g. 2,500,000 AED)
-- If no matching properties are found, suggest ways to broaden the search (higher budget, nearby areas, different property type, etc.)
+- Format the output nicely! Include the Building name, Size (sqft), and Amenities (Pool/Gym) if relevant. 
+  Example: "2-Bedroom Apartment in Marina Gate, Dubai Marina (1,200 sqft) - 2,500,000 AED [Pool, Gym]"
+- If no matching properties are found, suggest ways to broaden the search.
 """),
     MessagesPlaceholder(variable_name="messages", optional=True),   # ← conversation history
     ("human", "{input}"),
