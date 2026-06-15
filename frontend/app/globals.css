@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 35% 6%;
+    --foreground: 210 40% 98%;
+    --card: 240 28% 10%;
+    --card-foreground: 210 40% 98%;
+    --primary: 193 100% 50%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 240 20% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 240 18% 15%;
+    --muted-foreground: 215 18% 62%;
+    --accent: 240 22% 18%;
+    --accent-foreground: 210 40% 98%;
+    --border: 240 20% 18%;
+    --input: 240 20% 18%;
+    --ring: 193 100% 50%;
+    --radius: 0.85rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-ink-900 text-slate-100 antialiased;
+    background-image: radial-gradient(circle at 12% -10%, rgba(0, 114, 255, 0.16), transparent 42%),
+      radial-gradient(circle at 100% 0%, rgba(0, 198, 255, 0.12), transparent 38%),
+      radial-gradient(circle at 80% 100%, rgba(168, 85, 247, 0.1), transparent 45%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-white/10 bg-white/[0.045] backdrop-blur-xl;
+  }
+  /* Animated gradient text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand via-sky-300 to-brand-600 bg-clip-text text-transparent;
+  }
+  /* Spotlight card hover */
+  .card-hover {
+    @apply transition duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-glow;
+  }
+}
+
+/* Leaflet dark tweaks */
+.leaflet-container {
+  background: #0b1020;
+  border-radius: 1rem;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #16162a;
+  color: #e2e8f0;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}

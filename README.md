@@ -1,48 +1,61 @@
-# Dubai Property Finder AI Agent
+# Dubai AI Broker Assistant
 
-A production-ready **natural language real-estate search agent** designed exclusively for properties in Dubai. 
+An AI assistant that automates what a Dubai real-estate broker does — inventory, leads,
+matching, pitching, marketing, follow-up, sales and revenue — built as a **multi-tenant SaaS**
+for real-estate agencies. Powered by **Claude (`claude-opus-4-8`)**.
 
-This agent uses LangChain and OpenAI to convert your plain English questions into safe SQL, queries a PostgreSQL database, and returns highly detailed formatted results.
+> 📋 Full product & build roadmap: **[PLAN.md](PLAN.md)**
 
-## 🌟 Key Features
+## Current state
 
-- **Natural Language to SQL:** Ask complex questions in plain english (e.g. *"Find 3-bedroom penthouses in Downtown Dubai with a pool and gym under 15 million AED."*)
-- **Rich Data & Amenities:** The database schema tracks exact building names, square footage, Price per SqFt calculations, and boolean amenities (Pool, Gym, Balcony).
-- **Interactive Maps (`folium`):** The agent automatically detects location names in its answers and renders a Folium map visualization directly in the chat feed!
-- **Voice Search (`SpeechRecognition`):** Use your microphone to dictate questions—perfect for quick, hands-free property hunting.
-- **Premium UI:** Built with Streamlit, the app features a sleek, dark-themed responsive UI with glassmorphism, glowing micro-animations, and 'Outfit' typography.
-- **Guardrails & Memory:** The AI remembers conversation context and automatically blocks DROP/DELETE injections or non-Dubai real estate queries.
+- ✅ **Backend** (`backend/`) — FastAPI + async SQLAlchemy (Postgres) + Anthropic Claude.
+  Multi-tenant CRM (auth, leads, pipeline, interactions, tasks, deals/revenue) + the broker
+  brain (NL search, match, pitch, marketing) + live analytics. See [backend/README.md](backend/README.md).
+- ✅ **Frontend** (`frontend/`) — Next.js 14 + TypeScript + Tailwind. Animated dashboard with a
+  **UAE market map** + charts, pipeline kanban, AI search. See [frontend/README.md](frontend/README.md).
+- ✅ **Telegram bot** (`telegram_bot/`) — operate the agent from Telegram today. See [telegram_bot/README.md](telegram_bot/README.md).
+- 🗄️ **`legacy/`** — the original Streamlit + LangChain prototype, kept for reference.
 
-## 🛠️ Tech Stack
-- **Backend:** Flask, PostgreSQL, `psycopg2`
-- **AI & Logic:** LangChain Core/Community/OpenAI, GPT-4o-mini
-- **Frontend:** Streamlit, `streamlit-folium`
-- **Voice:** `SpeechRecognition`, `pyaudio`
+## Run the whole stack (3 terminals)
 
-## 🚀 Quickstart Guide
+1. **Backend** — `cd backend` → venv + `pip install -r requirements.txt` → set `.env` → `uvicorn app.main:app --reload --port 8000`
+2. **Frontend** — `cd frontend` → `npm install` → `npm run dev` → http://localhost:3000 (login `demo@demo.ae` / `demo12345`)
+3. **Telegram** (optional) — `cd telegram_bot` → venv + `pip install -r requirements.txt` → set `.env` token → `python bot.py`
 
-### 1. Requirements
-Ensure you have a PostgreSQL server running locally, and an OpenAI API key. Add them to your `.env` file:
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/postgres
-OPENAI_API_KEY=sk-xxxxxxx
-```
+See [docs/free-apis.md](docs/free-apis.md) for free APIs to enrich the product.
 
-### 2. Installation
-Install the dependencies listed in `requirements.txt`:
-```bash
+## Quickstart (backend)
+
+Windows **PowerShell** (run each line separately — PowerShell doesn't support `&&`):
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env    # then edit .env: set DATABASE_URL + ANTHROPIC_API_KEY
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 3. Run the Backend (Data + Agent API)
-First, start the Flask backend. On the first run, the script will automatically create the PostgreSQL table and generate ~5,000 highly realistic rows of property data!
+macOS / Linux:
+
 ```bash
-python dubai_property_agent.py
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 4. Run the Frontend UI
-In a new terminal window, start the Streamlit app:
-```bash
-streamlit run app.py
-```
-Enjoy your new intelligent real estate agent!
+Then open **http://localhost:8000/docs**. First boot creates tables and seeds demo properties.
+
+> 💸 **Costs are kept low by default:** the cheapest model (Haiku), extended thinking off,
+> a 1,500-token output cap, and a 15-AI-calls/minute guard. Tune these in `.env`
+> (`CLAUDE_MODEL`, `USE_THINKING`, `AI_MAX_TOKENS`, `AI_RATE_LIMIT_PER_MINUTE`).
+
+## Tech stack
+
+- **Backend:** FastAPI, async SQLAlchemy 2.0, asyncpg, PostgreSQL
+- **AI:** Anthropic Python SDK, `claude-opus-4-8` (adaptive thinking), tool-calling
+- **Frontend (planned):** Next.js, TypeScript, Tailwind CSS
+- **Integrations (planned):** WhatsApp Business API, Gmail/SMTP, listing feeds (Bayut/Property Finder/DLD)
