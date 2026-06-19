@@ -4,67 +4,108 @@
 
 @layer base {
   :root {
-    --background: 240 35% 6%;
-    --foreground: 210 40% 98%;
-    --card: 240 28% 10%;
-    --card-foreground: 210 40% 98%;
-    --primary: 193 100% 50%;
+    --background: 222 52% 5%;
+    --foreground: 213 31% 95%;
+    --card: 222 40% 8%;
+    --card-foreground: 213 31% 95%;
+    --primary: 192 100% 59%;
     --primary-foreground: 222 47% 6%;
-    --secondary: 240 20% 16%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 240 18% 15%;
-    --muted-foreground: 215 18% 62%;
-    --accent: 240 22% 18%;
-    --accent-foreground: 210 40% 98%;
-    --border: 240 20% 18%;
-    --input: 240 20% 18%;
-    --ring: 193 100% 50%;
-    --radius: 0.85rem;
+    --secondary: 222 30% 14%;
+    --secondary-foreground: 213 31% 95%;
+    --muted: 222 26% 13%;
+    --muted-foreground: 215 18% 60%;
+    --accent: 222 30% 16%;
+    --accent-foreground: 213 31% 95%;
+    --border: 222 28% 15%;
+    --input: 222 28% 15%;
+    --ring: 192 100% 59%;
+    --radius: 0.9rem;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-ink-900 text-slate-100 antialiased;
-    background-image: radial-gradient(circle at 12% -10%, rgba(0, 114, 255, 0.16), transparent 42%),
-      radial-gradient(circle at 100% 0%, rgba(0, 198, 255, 0.12), transparent 38%),
-      radial-gradient(circle at 80% 100%, rgba(168, 85, 247, 0.1), transparent 45%);
+    @apply bg-ink-900 text-slate-200 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+    background-image: radial-gradient(60% 50% at 12% -5%, rgba(45, 212, 255, 0.1), transparent 60%),
+      radial-gradient(50% 40% at 100% 0%, rgba(99, 102, 241, 0.1), transparent 55%),
+      radial-gradient(50% 45% at 85% 110%, rgba(52, 211, 153, 0.06), transparent 55%);
     background-attachment: fixed;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display), var(--font-outfit), sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: rgba(45, 212, 255, 0.25);
+    color: #fff;
   }
 }
 
 @layer components {
+  /* Premium frosted card */
   .glass {
-    @apply rounded-2xl border border-white/10 bg-white/[0.045] backdrop-blur-xl;
+    @apply rounded-2xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-2xl;
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.05) inset, 0 16px 40px -28px rgba(0, 0, 0, 0.85);
   }
-  /* Animated gradient text */
-  .text-gradient {
-    @apply bg-gradient-to-r from-brand via-sky-300 to-brand-600 bg-clip-text text-transparent;
-  }
-  /* Spotlight card hover */
+
+  /* Smooth hover lift for interactive cards */
   .card-hover {
-    @apply transition duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-glow;
+    @apply transition-all duration-300 ease-smooth hover:-translate-y-1 hover:border-brand/30;
+    will-change: transform;
+  }
+  .card-hover:hover {
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.07) inset, 0 26px 60px -30px rgba(0, 0, 0, 0.9),
+      0 0 30px -8px rgba(45, 212, 255, 0.25);
+  }
+
+  /* Refined gradient text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-400 via-brand to-brand-600 bg-clip-text text-transparent;
+  }
+
+  /* Subtle section heading kicker */
+  .kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-brand/80;
   }
 }
 
 /* Leaflet dark tweaks */
 .leaflet-container {
-  background: #0b1020;
+  background: #0a0f1e;
   border-radius: 1rem;
+  font-family: var(--font-outfit), sans-serif;
 }
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: #16162a;
+  background: #141b2e;
   color: #e2e8f0;
+  border-radius: 12px;
 }
 
+/* Refined scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(45, 212, 255, 0.3);
+  background-clip: content-box;
 }

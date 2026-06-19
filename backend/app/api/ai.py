@@ -4,12 +4,15 @@ All routes are tenant-scoped via the authenticated user, and rate-limited as a
 runaway-spend guard.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai import broker_agent
+from app.ai.client import generate
 from app.api.deps import get_current_user
 from app.db import get_session
-from app.models import Lead, Property, User
+from app.models import Interaction, Lead, Property, User
 from app.ratelimit import ai_rate_limiter
 from app.schemas import (
     MarketingRequest,
@@ -85,3 +88,52 @@ async def ai_marketing(
         raise HTTPException(404, "Property not found")
     assets = await broker_agent.marketing_pack(session, prop, body.channels)
     return MarketingResponse(property_id=prop.id, assets=assets)
+
+
+class FollowupRequest(BaseModel):
+    lead_id: int
+    channel: str = "whatsapp"  # whatsapp | email | call
+
+
+@router.post("/followup")
+async def ai_followup(
+    body: FollowupRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Draft a short, on-demand follow-up message for a lead.
+
+    Intentionally cheap: uses the fast model + a tight token cap (see config),
+    and only runs when the agent clicks — the daily briefing itself spends no tokens.
+    """
+    lead = await _owned_lead(body.lead_id, user, session)
+    recent = (
+        (
+            await session.execute(
+                select(Interaction)
+                .where(Interaction.lead_id == lead.id)
+                .order_by(Interaction.created_at.desc())
+                .limit(4)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    history = "\n".join(f"- [{i.channel}] {i.body[:160]}" for i in recent) or "No prior contact."
+    budget = f"up to AED {int(lead.budget_max):,}" if lead.budget_max else "budget open"
+    context = (
+        f"Lead: {lead.name} (lang: {lead.language})\n"
+        f"Stage: {lead.status} · {budget} · {lead.bedrooms or 'any'}BR · "
+        f"{lead.property_type or 'any'} · areas: {lead.preferred_locations or 'open'}\n"
+        f"Recent activity:\n{history}"
+    )
+    message = await generate(
+        system=(
+            f"You are a Dubai real-estate agent writing a brief, friendly {body.channel} follow-up to a "
+            f"client in {lead.language}. 2-4 sentences, warm, specific to their brief, with a clear next "
+            "step (book a viewing / share options). Ready to send; sign as [Your name]. Return only the message."
+        ),
+        content=context,
+        max_tokens=350,
+    )
+    return {"lead_id": lead.id, "channel": body.channel, "message": message}

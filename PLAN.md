@@ -17,7 +17,9 @@
 - ✅ **Phase 1 — done:** JWT auth (agency signup/login/invite, roles), tenant scoping on every route, CRM models (`users`, `interactions`, `tasks`, `deals` + lead pipeline stages), routers for leads (CRUD + pipeline moves + timeline), pipeline board, tasks, deals + `/api/deals/summary` revenue, Alembic scaffolding. Demo login `demo@demo.ae` / `demo12345`.
 - ✅ **Frontend v1 — done:** Next.js 14 + TS + Tailwind (`frontend/`). Animated login, dashboard (live stat cards, **animated UAE market map** via Leaflet, Recharts trends/price/stage/type), pipeline kanban (add + move leads), AI search. Backend analytics endpoint `/api/analytics/dashboard`.
 - ✅ **Telegram bot — done:** `telegram_bot/` — operate the agent in Telegram (NL search + `/newlead`), backed by the API. (WhatsApp deferred per user.)
-- ⏭️ **Next:** lead detail page (timeline + AI match/pitch/marketing panels), then Phase 3 outreach (Telegram push + later WhatsApp), real DLD data (Phase 7).
+- ✅ **Real listing data — done (Phase 7 start):** RapidAPI **Bayut import** + **CSV import** (per-agency, legal path) → `properties` (image_url/external_id/source). Listings gallery page with photos + import controls.
+- ✅ **Market Trends — done:** `/api/analytics/market` + `/market` page with many chart types (price bands, bedroom mix, type donut, ready/off-plan radial, price-range-by-type composed, ppsf-by-area, size-vs-price scatter, area radar, area treemap). Powered by real imported inventory; DLD/Dubai Pulse can layer in once registered.
+- ⏭️ **Next:** lead detail page (timeline + AI match/pitch/marketing panels); DLD/Dubai Pulse transactions ingestion; Phase 3 outreach (Telegram push → WhatsApp).
 
 ---
 

@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, LayoutDashboard, KanbanSquare, Sparkles, LogOut } from "lucide-react";
+import { Building2, LayoutDashboard, KanbanSquare, Sparkles, LogOut, Home, TrendingUp, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 const NAV = [
+  { href: "/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/listings", label: "Listings", icon: Home },
+  { href: "/market", label: "Market Trends", icon: TrendingUp },
   { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
   { href: "/search", label: "AI Search", icon: Sparkles },
 ];

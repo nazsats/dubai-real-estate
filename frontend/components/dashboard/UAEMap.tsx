@@ -6,10 +6,10 @@ import { aed } from "@/lib/format";
 
 // Color by average price tier.
 function priceColor(avg: number): string {
-  if (avg >= 15_000_000) return "#d4af37"; // gold — ultra prime
-  if (avg >= 6_000_000) return "#00c6ff"; // brand — prime
-  if (avg >= 2_500_000) return "#22c55e"; // green — mid
-  return "#a855f7"; // purple — value
+  if (avg >= 15_000_000) return "#e3b341"; // gold — ultra prime
+  if (avg >= 6_000_000) return "#2dd4ff"; // brand — prime
+  if (avg >= 2_500_000) return "#34d399"; // emerald — mid
+  return "#a855f7"; // violet — value
 }
 
 export default function UAEMap({ markers }: { markers: DashboardData["area_markers"] }) {

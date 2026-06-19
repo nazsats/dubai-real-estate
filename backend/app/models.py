@@ -59,6 +59,9 @@ class Property(Base):
     has_balcony: Mapped[bool] = mapped_column(Boolean, default=False)
     available: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     possession: Mapped[str] = mapped_column(String(40), default="Ready")
+    image_url: Mapped[str | None] = mapped_column(Text)  # cover photo
+    external_id: Mapped[str | None] = mapped_column(String(64), index=True)  # source id (dedupe imports)
+    source: Mapped[str] = mapped_column(String(20), default="manual")  # manual | bayut | seed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

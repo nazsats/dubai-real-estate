@@ -116,9 +116,9 @@ function Card({ title, children, className = "" }: { title: string; children: Re
 
 function Legend() {
   const items = [
-    { c: "#d4af37", l: "Ultra prime 15M+" },
-    { c: "#00c6ff", l: "Prime 6M+" },
-    { c: "#22c55e", l: "Mid 2.5M+" },
+    { c: "#e3b341", l: "Ultra prime 15M+" },
+    { c: "#2dd4ff", l: "Prime 6M+" },
+    { c: "#34d399", l: "Mid 2.5M+" },
     { c: "#a855f7", l: "Value" },
   ];
   return (

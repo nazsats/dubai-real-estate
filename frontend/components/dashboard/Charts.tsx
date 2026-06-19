@@ -16,14 +16,15 @@ import {
 import { DashboardData } from "@/lib/api";
 import { aed } from "@/lib/format";
 
-const PIE_COLORS = ["#00c6ff", "#0072ff", "#22c55e", "#d4af37", "#a855f7", "#f97316"];
+const PIE_COLORS = ["#2dd4ff", "#38bdf8", "#6366f1", "#34d399", "#e3b341", "#a855f7", "#f472b6"];
 
 const tooltipStyle = {
-  background: "#16162a",
+  background: "#141b2e",
   border: "1px solid rgba(255,255,255,0.1)",
   borderRadius: 12,
   color: "#e2e8f0",
   fontSize: 12,
+  boxShadow: "0 16px 40px -20px rgba(0,0,0,0.8)",
 };
 
 export function LeadsOverTime({ data }: { data: DashboardData["leads_over_time"] }) {
@@ -32,14 +33,14 @@ export function LeadsOverTime({ data }: { data: DashboardData["leads_over_time"]
       <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
         <defs>
           <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#00c6ff" stopOpacity={0.5} />
-            <stop offset="100%" stopColor="#00c6ff" stopOpacity={0} />
+            <stop offset="0%" stopColor="#2dd4ff" stopOpacity={0.45} />
+            <stop offset="100%" stopColor="#2dd4ff" stopOpacity={0} />
           </linearGradient>
         </defs>
         <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} tickFormatter={(d) => String(d).slice(5)} />
         <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} />
         <Tooltip contentStyle={tooltipStyle} />
-        <Area type="monotone" dataKey="count" stroke="#00c6ff" strokeWidth={2} fill="url(#leadGrad)" />
+        <Area type="monotone" dataKey="count" stroke="#2dd4ff" strokeWidth={2.5} fill="url(#leadGrad)" />
       </AreaChart>
     </ResponsiveContainer>
   );

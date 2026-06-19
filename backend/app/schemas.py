@@ -63,7 +63,24 @@ class PropertyOut(PropertyBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     agency_id: int | None = None
+    image_url: str | None = None
+    external_id: str | None = None
+    source: str = "manual"
     created_at: datetime
+
+
+class BayutImportRequest(BaseModel):
+    location: str = "Dubai"  # area name, e.g. "Dubai Marina"
+    purpose: str = "for-sale"  # for-sale | for-rent
+    pages: int = 1  # pages of ~25 listings each
+    to_shared_pool: bool = False  # if true, agency_id=NULL (visible to all tenants)
+
+
+class BayutImportResult(BaseModel):
+    location: str
+    imported: int
+    skipped: int
+    fetched: int
 
 
 # ── Leads ─────────────────────────────────────────────────────

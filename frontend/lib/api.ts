@@ -1,5 +1,6 @@
 // Lightweight typed fetch wrapper around the FastAPI backend.
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE = API_BASE;
 const TOKEN_KEY = "dbroker_token";
 
 export function getToken(): string | null {
@@ -44,6 +45,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    body: form, // browser sets multipart boundary; don't set Content-Type
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail || detail;
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return res.json();
+}
+
 export const api = {
   get: <T>(p: string) => request<T>(p),
   post: <T>(p: string, body?: unknown) =>
@@ -51,6 +73,7 @@ export const api = {
   patch: <T>(p: string, body?: unknown) =>
     request<T>(p, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
   del: <T>(p: string) => request<T>(p, { method: "DELETE" }),
+  upload: uploadFile,
 };
 
 // ── Types (mirror backend schemas) ───────────────────────────
@@ -77,6 +100,15 @@ export interface Lead {
   notes?: string | null;
   created_at: string;
 }
+export interface Interaction {
+  id: number;
+  lead_id: number;
+  user_id: number | null;
+  channel: string;
+  direction: string;
+  body: string;
+  created_at: string;
+}
 export interface Property {
   id: number;
   location: string;
@@ -89,6 +121,9 @@ export interface Property {
   has_gym: boolean;
   available: boolean;
   possession: string;
+  image_url?: string | null;
+  external_id?: string | null;
+  source?: string;
 }
 export interface DashboardData {
   stats: {
@@ -118,4 +153,35 @@ export interface PipelineData {
   stages: string[];
   counts: Record<string, number>;
   board: Record<string, Lead[]>;
+  per_stage?: number;
+}
+export interface BriefingLead {
+  lead_id: number;
+  name: string;
+  status: string;
+  score: number;
+  days_since_touch?: number;
+  contacted?: boolean;
+  reason?: string;
+  budget_max?: number | null;
+}
+export interface BriefingData {
+  generated_at: string;
+  stats: { follow_ups: number; hot: number; going_cold: number; tasks_today: number; active_leads: number };
+  follow_ups: BriefingLead[];
+  hot_leads: BriefingLead[];
+  going_cold: BriefingLead[];
+  tasks_today: { id: number; title: string; lead_id: number | null; due_at: string | null; overdue: boolean }[];
+}
+export interface MarketData {
+  stats: { listings: number; avg_price: number; avg_ppsf: number; areas: number };
+  price_bands: { band: string; count: number }[];
+  bedrooms_dist: { beds: string; count: number }[];
+  type_mix: { type: string; count: number }[];
+  price_range_by_type: { type: string; min: number; avg: number; max: number }[];
+  ready_split: { status: string; count: number }[];
+  ppsf_by_area: { location: string; count: number; avg_price: number; ppsf: number; avg_size: number }[];
+  area_treemap: { location: string; count: number }[];
+  scatter: { size: number; price: number; type: string }[];
+  radar: { areas: string[]; data: Record<string, string | number>[] };
 }

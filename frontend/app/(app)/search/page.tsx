@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, Sparkles, Send } from "lucide-react";
 import { api, Property } from "@/lib/api";
-import { aed } from "@/lib/format";
+import PropertyCard from "@/components/PropertyCard";
 
 interface SearchResult {
   answer: string;
@@ -91,24 +91,9 @@ export default function SearchPage() {
             {result.answer}
           </div>
           {result.properties.length > 0 && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {result.properties.map((p) => (
-                <div key={p.id} className="glass p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">
-                      {p.bedrooms}BR {p.type}
-                    </span>
-                    <span className="font-bold text-brand">{aed(p.price)}</span>
-                  </div>
-                  <div className="text-sm text-slate-300">
-                    {p.building}, {p.location}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {p.size_sqft.toLocaleString()} sqft · {p.possession}
-                    {p.has_pool ? " · Pool" : ""}
-                    {p.has_gym ? " · Gym" : ""}
-                  </div>
-                </div>
+                <PropertyCard key={p.id} p={p} />
               ))}
             </div>
           )}

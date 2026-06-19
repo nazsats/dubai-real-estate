@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, ArrowUpRight } from "lucide-react";
 import { api, Lead, PipelineData } from "@/lib/api";
-import { aed } from "@/lib/format";
+import { aed, num } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const STAGE_COLOR: Record<string, string> = {
-  New: "#00c6ff",
-  Contacted: "#0072ff",
-  Qualified: "#a855f7",
-  Viewing: "#f97316",
-  Negotiation: "#d4af37",
-  Won: "#22c55e",
+  New: "#2dd4ff",
+  Contacted: "#38bdf8",
+  Qualified: "#6366f1",
+  Viewing: "#f59e0b",
+  Negotiation: "#e3b341",
+  Won: "#34d399",
   Lost: "#ef4444",
 };
 
@@ -51,96 +54,110 @@ export default function PipelinePage() {
       </div>
     );
 
+  const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Pipeline</h1>
-          <p className="text-sm text-slate-400">Track every lead from first contact to closed deal.</p>
+          <p className="text-sm text-slate-400">
+            {num(total)} leads · first contact to closed deal.
+          </p>
         </div>
-        <button
-          onClick={() => setAdding(!adding)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110"
-        >
+        <Button onClick={() => setAdding(!adding)}>
           <Plus className="h-4 w-4" /> Add lead
-        </button>
+        </Button>
       </div>
 
       {adding && (
         <form onSubmit={addLead} className="glass flex flex-wrap items-end gap-3 p-4">
           <label className="flex-1">
             <span className="mb-1 block text-xs text-slate-400">Name</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-ink-700/60 px-3 py-2 text-sm outline-none focus:border-brand"
-            />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Lead name" />
           </label>
           <label>
             <span className="mb-1 block text-xs text-slate-400">Max budget (AED)</span>
-            <input
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              type="number"
-              className="rounded-lg border border-white/10 bg-ink-700/60 px-3 py-2 text-sm outline-none focus:border-brand"
-            />
+            <Input value={budget} onChange={(e) => setBudget(e.target.value)} type="number" className="w-44" />
           </label>
-          <button className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Save</button>
+          <Button type="submit">Save</Button>
         </form>
       )}
 
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {data.stages.map((stage) => (
-          <div key={stage} className="w-72 shrink-0">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: STAGE_COLOR[stage] }} />
-                {stage}
-              </span>
-              <span className="text-xs text-slate-500">{data.counts[stage] ?? 0}</span>
-            </div>
-            <div className="space-y-2">
-              {(data.board[stage] ?? []).map((lead) => (
-                <motion.div
-                  key={lead.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.97 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="glass p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{lead.name}</span>
-                    {lead.score > 0 && (
-                      <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">
-                        {lead.score}°
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    {lead.budget_max ? `up to ${aed(lead.budget_max)}` : "budget open"}
-                    {lead.bedrooms ? ` · ${lead.bedrooms}BR` : ""}
-                  </div>
-                  <select
-                    value={lead.status}
-                    onChange={(e) => moveLead(lead, e.target.value)}
-                    className="mt-2 w-full rounded-lg border border-white/10 bg-ink-700/60 px-2 py-1 text-xs outline-none focus:border-brand"
+        {data.stages.map((stage) => {
+          const shown = data.board[stage] ?? [];
+          const count = data.counts[stage] ?? 0;
+          const more = count - shown.length;
+          return (
+            <div key={stage} className="flex w-72 shrink-0 flex-col">
+              <div
+                className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
+                style={{ borderTopColor: STAGE_COLOR[stage], borderTopWidth: 2 }}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: STAGE_COLOR[stage] }} />
+                  {stage}
+                </span>
+                <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-slate-300">{num(count)}</span>
+              </div>
+
+              <div className="max-h-[68vh] space-y-2 overflow-y-auto pr-1">
+                {shown.map((lead) => (
+                  <motion.div
+                    key={lead.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass p-3"
                   >
-                    {data.stages.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </motion.div>
-              ))}
-              {(data.board[stage] ?? []).length === 0 && (
-                <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-600">
-                  Empty
-                </div>
-              )}
+                    <div className="flex items-center justify-between">
+                      <Link
+                        href={`/leads/${lead.id}`}
+                        className="flex items-center gap-1 font-medium hover:text-brand"
+                      >
+                        {lead.name}
+                        <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
+                      </Link>
+                      {lead.score > 0 && (
+                        <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">
+                          {lead.score}°
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {lead.budget_max ? `up to ${aed(lead.budget_max)}` : "budget open"}
+                      {lead.bedrooms ? ` · ${lead.bedrooms}BR` : ""}
+                    </div>
+                    <select
+                      value={lead.status}
+                      onChange={(e) => moveLead(lead, e.target.value)}
+                      className="mt-2 w-full rounded-lg border border-white/10 bg-ink-700/60 px-2 py-1 text-xs outline-none focus:border-brand"
+                    >
+                      {data.stages.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </motion.div>
+                ))}
+
+                {shown.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-600">
+                    Empty
+                  </div>
+                )}
+
+                {more > 0 && (
+                  <div className="rounded-xl border border-dashed border-white/10 py-2 text-center text-xs text-slate-500">
+                    +{num(more)} more in {stage}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
