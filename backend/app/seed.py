@@ -35,6 +35,31 @@ FALLBACK_LOCATIONS = [
 TYPES = ["Apartment", "Villa", "Townhouse", "Penthouse"]
 POSSESSIONS = ["Ready", "Q1 2026", "Q2 2026", "Q3 2026", "Under Construction", "Q4 2025"]
 
+# Curated, stable Unsplash photos per type so seeded demo listings show real imagery
+# (the seed has no live feed). Replaced by actual cover photos on Bayut/CSV import.
+STOCK_IMAGES = {
+    "Apartment": [
+        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&q=70",
+        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&q=70",
+        "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&q=70",
+    ],
+    "Villa": [
+        "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&q=70",
+        "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&q=70",
+        "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=70",
+    ],
+    "Townhouse": [
+        "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&q=70",
+        "https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=800&q=70",
+        "https://images.unsplash.com/photo-1576941089067-2de3c901e126?w=800&q=70",
+    ],
+    "Penthouse": [
+        "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=70",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=70",
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=70",
+    ],
+}
+
 
 def _random_property() -> dict:
     if random.random() < 0.7:
@@ -74,6 +99,8 @@ def _random_property() -> dict:
         "has_balcony": balcony,
         "available": random.random() < 0.8,
         "possession": random.choice(POSSESSIONS),
+        "source": "seed",
+        "image_url": random.choice(STOCK_IMAGES[ptype]),
     }
 
 

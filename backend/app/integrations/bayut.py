@@ -1,9 +1,14 @@
-"""RapidAPI 'Bayut' integration — pull real Dubai listings into our Property model.
+"""RapidAPI 'Byut API' integration — pull real Dubai listings into our Property model.
 
-Free tier at rapidapi.com → search "Bayut" (ApiDojo) → subscribe → copy the key into
-RAPIDAPI_KEY. NOTE: this is an *unofficial* API (mirrors the portal); fine for dev/demo,
-but use official agency feeds / DLD data for a paid commercial product (see
+Subscribe on rapidapi.com (host ``byut-api.p.rapidapi.com``) → copy the key into
+RAPIDAPI_KEY. NOTE: this is an *unofficial* API (mirrors the Bayut portal); fine for
+dev/demo, but use official agency feeds / DLD data for a paid commercial product (see
 docs/property-data-apis.md).
+
+This API has no location autocomplete endpoint, but it uses Bayut's standard
+locationExternalID space (Dubai city-wide = 5002), so we resolve area names from a
+small static map and fall back to Dubai-wide — the mapper then derives each listing's
+specific community from its own location data.
 """
 import httpx
 
@@ -11,6 +16,15 @@ from app.config import get_settings
 
 settings = get_settings()
 SQM_TO_SQFT = 10.7639
+DUBAI_LOCATION_ID = "5002"
+
+# Standard Bayut locationExternalIDs for popular Dubai communities. Anything not listed
+# falls back to Dubai city-wide (5002), which still returns that area's listings mixed
+# with the rest of the city.
+AREA_LOCATION_IDS = {
+    "dubai": "5002",
+    "downtown dubai": "6901",
+}
 
 
 def _headers() -> dict:
@@ -25,39 +39,28 @@ def _base() -> str:
 
 
 async def resolve_location_id(client: httpx.AsyncClient, query: str) -> str:
-    """Turn an area name into a Bayut locationExternalID. Defaults to Dubai (5002)."""
-    if not query or query.strip().lower() == "dubai":
-        return "5002"
-    resp = await client.get(
-        f"{_base()}/auto-complete",
-        params={"query": query, "hitsPerPage": 1, "page": 0, "lang": "en"},
-        headers=_headers(),
-        timeout=30,
-    )
-    resp.raise_for_status()
-    hits = resp.json().get("hits", [])
-    return str(hits[0]["externalID"]) if hits else "5002"
+    """Map an area name to a Bayut locationExternalID. Defaults to Dubai (5002)."""
+    return AREA_LOCATION_IDS.get((query or "").strip().lower(), DUBAI_LOCATION_ID)
 
 
 async def fetch_listings(
     client: httpx.AsyncClient, location_id: str, purpose: str, page: int
 ) -> list[dict]:
     resp = await client.get(
-        f"{_base()}/properties/list",
+        f"{_base()}/search/property",
         params={
-            "locationExternalIDs": location_id,
+            "location_external_id": location_id,
             "purpose": purpose,
             "hitsPerPage": 25,
             "page": page,
-            "lang": "en",
-            "sort": "city-level-score",
-            "categoryExternalID": 4,  # residential
+            "category": "residential",
         },
         headers=_headers(),
         timeout=45,
     )
     resp.raise_for_status()
-    return resp.json().get("hits", [])
+    # This API wraps results: {"message": ..., "status_code": ..., "datan": {"hits": [...]}}
+    return resp.json().get("datan", {}).get("hits", [])
 
 
 def _pick_type(hit: dict) -> str:

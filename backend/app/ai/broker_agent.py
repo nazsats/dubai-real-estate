@@ -80,8 +80,8 @@ async def fetch_properties(
         stmt = stmt.order_by(Property.price.asc())
     elif sort == "price_desc":
         stmt = stmt.order_by(Property.price.desc())
-    else:
-        stmt = stmt.order_by(Property.price.asc())
+    else:  # relevance: newest first, so freshly imported real listings surface on top
+        stmt = stmt.order_by(Property.created_at.desc(), Property.id.desc())
 
     stmt = stmt.limit(min(limit, 50))
     result = await session.execute(stmt)

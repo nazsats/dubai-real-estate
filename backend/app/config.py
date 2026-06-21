@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     # Create tables on startup (dev convenience). Set false once you adopt Alembic.
     auto_create_tables: bool = True
 
-    # RapidAPI Bayut (real Dubai listings) — get a free key at rapidapi.com.
+    # RapidAPI Byut API (real Dubai listings) — get a free key at rapidapi.com.
     rapidapi_key: str = ""
-    rapidapi_bayut_host: str = "bayut.p.rapidapi.com"
+    rapidapi_bayut_host: str = "byut-api.p.rapidapi.com"
 
     # AI models — see the claude-api skill.
     # Default to Haiku (cheapest) to control cost; smart model is opt-in per call.
