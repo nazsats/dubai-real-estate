@@ -149,7 +149,7 @@ export default function LeadDetailPage() {
         <div className="space-y-5 lg:col-span-1">
           <div className="glass p-5">
             <div className="flex items-center justify-between">
-              <h1 className="text-xl font-bold">{lead.name}</h1>
+              <h1 className="min-w-0 truncate text-xl font-bold">{lead.name}</h1>
               {lead.score > 0 && <Badge>{lead.score}° hot</Badge>}
             </div>
             <div className="mt-3 space-y-1.5 text-sm text-slate-300">
@@ -200,7 +200,7 @@ export default function LeadDetailPage() {
           <div className="glass p-5">
             <h3 className="mb-3 text-sm font-semibold text-slate-300">Activity timeline</h3>
             <form onSubmit={addNote} className="mb-4 space-y-2">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <select
                   value={channel}
                   onChange={(e) => setChannel(e.target.value)}
@@ -212,7 +212,12 @@ export default function LeadDetailPage() {
                     </option>
                   ))}
                 </select>
-                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Log an activity…" />
+                <Input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Log an activity…"
+                  className="min-w-0 flex-1"
+                />
                 <Button type="submit" size="icon" variant="secondary">
                   <Send className="h-4 w-4" />
                 </Button>
@@ -306,7 +311,7 @@ export default function LeadDetailPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass max-h-[85vh] w-full max-w-2xl overflow-y-auto p-6"
+            className="glass max-h-[85vh] w-full max-w-2xl overflow-y-auto p-4 sm:p-6"
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-lg font-bold">

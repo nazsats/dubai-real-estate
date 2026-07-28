@@ -139,7 +139,9 @@ export default function TodayPage() {
               return (
                 <div
                   key={l.lead_id}
-                  className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3"
+                  // Stacks on phones so the name and reason get full width and
+                  // the buttons keep a usable tap target instead of squeezing.
+                  className="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.02] p-3 sm:flex-row sm:items-center sm:gap-3"
                 >
                   <span className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-xs font-bold text-slate-400 sm:flex">
                     {i + 1}
@@ -158,14 +160,16 @@ export default function TodayPage() {
                       {urgent && " — at risk of going cold"}
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => makeDraft(l)}>
-                    <Sparkles className="h-3.5 w-3.5" /> Draft
-                  </Button>
-                  <Link href={`/leads/${l.lead_id}`}>
-                    <Button size="sm" variant="ghost">
-                      <ArrowUpRight className="h-4 w-4" />
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => makeDraft(l)}>
+                      <Sparkles className="h-3.5 w-3.5" /> Draft
                     </Button>
-                  </Link>
+                    <Link href={`/leads/${l.lead_id}`} className="ml-auto sm:ml-0">
+                      <Button size="sm" variant="ghost">
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               );
             })}
@@ -223,7 +227,7 @@ export default function TodayPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass w-full max-w-lg p-6"
+            className="glass max-h-[85vh] w-full max-w-lg overflow-y-auto p-4 sm:p-6"
           >
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 font-bold">

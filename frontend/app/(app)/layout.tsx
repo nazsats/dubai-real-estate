@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import Sidebar from "@/components/Sidebar";
+import { DesktopSidebar, MobileNav } from "@/components/Sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -24,8 +24,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-6 lg:p-8">{children}</main>
+      <DesktopSidebar />
+      {/* min-w-0 lets flex children shrink; without it a wide table or chart
+          inside forces the whole page to scroll sideways. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <MobileNav />
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      </div>
     </div>
   );
 }

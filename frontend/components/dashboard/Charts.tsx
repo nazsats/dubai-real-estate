@@ -16,6 +16,7 @@ import {
 import { DashboardData } from "@/lib/api";
 import { aed, num } from "@/lib/format";
 import { useChartAnimation } from "@/lib/use-chart-animation";
+import { useIsMobile } from "@/lib/use-breakpoint";
 import {
   INK,
   SERIES_1,
@@ -92,6 +93,7 @@ export function LeadsOverTime({ data }: { data: DashboardData["leads_over_time"]
  */
 export function AvgPriceByArea({ data }: { data: DashboardData["avg_price_by_area"] }) {
   const animate = useChartAnimation();
+  const mobile = useIsMobile();
   if (!data.length) return <NoData hint="Import or add listings to see pricing by area." />;
 
   const top = [...data].sort((a, b) => b.avg_price - a.avg_price).slice(0, 8);
@@ -104,7 +106,7 @@ export function AvgPriceByArea({ data }: { data: DashboardData["avg_price_by_are
         <YAxis
           type="category"
           dataKey="location"
-          width={116}
+          width={mobile ? 82 : 116}
           tick={{ ...axisTick, fill: INK.secondary }}
           tickLine={false}
           axisLine={false}
@@ -152,6 +154,7 @@ export function AvgPriceByArea({ data }: { data: DashboardData["avg_price_by_are
  */
 export function PropertyTypeBars({ data }: { data: DashboardData["properties_by_type"] }) {
   const animate = useChartAnimation();
+  const mobile = useIsMobile();
   if (!data.length) return <NoData hint="Your listing mix will show here once you add inventory." />;
 
   const sorted = [...data].sort((a, b) => b.count - a.count);
@@ -164,7 +167,7 @@ export function PropertyTypeBars({ data }: { data: DashboardData["properties_by_
         <YAxis
           type="category"
           dataKey="type"
-          width={92}
+          width={mobile ? 76 : 92}
           tick={{ ...axisTick, fill: INK.secondary }}
           tickLine={false}
           axisLine={false}

@@ -89,8 +89,8 @@ export default function ListingsPage() {
           <h1 className="text-2xl font-bold">Listings</h1>
           <p className="text-sm text-slate-400">Your inventory + the shared market pool.</p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="text-sm">
+        <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+          <label className="w-full text-sm sm:w-auto">
             <span className="mb-1 block text-xs text-slate-400">
               Import live listings for area
             </span>
@@ -98,7 +98,7 @@ export default function ListingsPage() {
               value={area}
               onChange={(e) => setArea(e.target.value)}
               placeholder="e.g. Dubai Marina, JVC"
-              className="w-48"
+              className="w-full sm:w-48"
             />
           </label>
           <Button onClick={importBayut} disabled={importing} variant="secondary">

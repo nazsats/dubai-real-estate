@@ -97,7 +97,9 @@ export default function Landing() {
                 <span className="h-3 w-3 rounded-full bg-amber-400/70" />
                 <span className="h-3 w-3 rounded-full bg-emerald-400/70" />
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              {/* 2-up on phones — four columns at 390px squeezed "tasks
+                  automated" onto three cramped lines. */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {STATS.map((s) => (
                   <div key={s.label} className="rounded-lg border border-white/5 bg-white/[0.03] p-3 text-left">
                     <div className="text-xl font-bold text-gradient">{s.value}</div>

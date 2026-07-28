@@ -24,6 +24,7 @@ import {
 import { MarketData } from "@/lib/api";
 import { aed, num } from "@/lib/format";
 import { useChartAnimation } from "@/lib/use-chart-animation";
+import { useIsMobile } from "@/lib/use-breakpoint";
 import {
   BAND_RAMP,
   INK,
@@ -116,6 +117,7 @@ export function BedroomsDist({ data }: { data: MarketData["bedrooms_dist"] }) {
  */
 export function TypeMixBars({ data }: { data: MarketData["type_mix"] }) {
   const animate = useChartAnimation();
+  const mobile = useIsMobile();
   const sorted = [...data].sort((a, b) => b.count - a.count);
   return (
     <ResponsiveContainer width="100%" height={240}>
@@ -125,7 +127,7 @@ export function TypeMixBars({ data }: { data: MarketData["type_mix"] }) {
         <YAxis
           type="category"
           dataKey="type"
-          width={92}
+          width={mobile ? 76 : 92}
           tick={{ ...axisTick, fill: INK.secondary }}
           tickLine={false}
           axisLine={false}
@@ -202,6 +204,7 @@ export function ReadySplit({ data }: { data: MarketData["ready_split"] }) {
  */
 export function PriceRangeByType({ data }: { data: MarketData["price_range_by_type"] }) {
   const animate = useChartAnimation();
+  const mobile = useIsMobile();
   const rows = data.map((d) => ({ ...d, base: d.min, span: Math.max(0, d.max - d.min) }));
 
   return (
@@ -222,7 +225,7 @@ export function PriceRangeByType({ data }: { data: MarketData["price_range_by_ty
         <YAxis
           type="category"
           dataKey="type"
-          width={86}
+          width={mobile ? 74 : 86}
           tick={{ ...axisTick, fill: INK.secondary }}
           tickLine={false}
           axisLine={false}
@@ -265,6 +268,7 @@ export function PriceRangeByType({ data }: { data: MarketData["price_range_by_ty
 /** One measure across areas → one colour, sorted, directly labelled. */
 export function PpsfByArea({ data }: { data: MarketData["ppsf_by_area"] }) {
   const animate = useChartAnimation();
+  const mobile = useIsMobile();
   const top = [...data].sort((a, b) => b.ppsf - a.ppsf).slice(0, 8);
   return (
     <ResponsiveContainer width="100%" height={280}>
@@ -274,7 +278,7 @@ export function PpsfByArea({ data }: { data: MarketData["ppsf_by_area"] }) {
         <YAxis
           type="category"
           dataKey="location"
-          width={116}
+          width={mobile ? 82 : 116}
           tick={{ ...axisTick, fill: INK.secondary }}
           tickLine={false}
           axisLine={false}
