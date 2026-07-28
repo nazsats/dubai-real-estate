@@ -61,6 +61,41 @@ STOCK_IMAGES = {
 }
 
 
+# Rough price tier per area, as a multiplier on the base price for a type.
+# Without this the generator picked type uniformly for every location, so
+# 60M villas landed in budget communities and every area averaged ~20M — which
+# made the dashboard's price map a single flat colour and "Al Furjan: AED 24M"
+# a straight-faced lie. Tiers keep the synthetic data directionally honest.
+AREA_TIER = {
+    "Palm Jumeirah": 3.4,
+    "Emirates Hills": 3.2,
+    "Downtown Dubai": 1.9,
+    "Dubai Marina": 1.5,
+    "Jumeirah Beach Residence": 1.45,
+    "Dubai Creek Harbour": 1.3,
+    "Dubai Hills Estate": 1.25,
+    "Arabian Ranches": 1.2,
+    "Meydan": 1.1,
+    "Business Bay": 1.0,
+    "JLT": 0.85,
+    "Al Barsha": 0.8,
+    "Al Furjan": 0.7,
+    "Jumeirah Village Circle": 0.65,
+    "Dubai Silicon Oasis": 0.6,
+    "Dubai South": 0.55,
+}
+
+# Villas/penthouses concentrate in the prime + suburban-villa areas; the dense
+# towers are overwhelmingly apartments.
+VILLA_AREAS = {"Palm Jumeirah", "Emirates Hills", "Arabian Ranches", "Dubai Hills Estate", "Meydan"}
+
+
+def _type_for(loc: str) -> str:
+    if loc in VILLA_AREAS:
+        return random.choices(TYPES, weights=[20, 45, 30, 5])[0]  # mostly villas/townhouses
+    return random.choices(TYPES, weights=[82, 2, 8, 8])[0]  # towers -> apartments
+
+
 def _random_property() -> dict:
     if random.random() < 0.7:
         loc = random.choice(list(LOCATION_BUILDINGS))
@@ -69,23 +104,27 @@ def _random_property() -> dict:
         loc = random.choice(FALLBACK_LOCATIONS)
         building = f"Generic {loc} Building"
 
-    ptype = random.choice(TYPES)
+    ptype = _type_for(loc)
+    tier = AREA_TIER.get(loc, 1.0)
+
     if ptype == "Villa":
         bedrooms, size = random.randint(4, 7), random.randint(3500, 12000)
-        price = random.randint(7_000_000, 65_000_000)
+        price = random.randint(4_000_000, 14_000_000)
         pool, gym, balcony = random.random() < 0.9, False, True
     elif ptype == "Penthouse":
         bedrooms, size = random.randint(3, 6), random.randint(3000, 8000)
-        price = random.randint(9_000_000, 50_000_000)
+        price = random.randint(6_000_000, 16_000_000)
         pool, gym, balcony = True, True, True
     elif ptype == "Townhouse":
         bedrooms, size = random.randint(3, 5), random.randint(2000, 4000)
-        price = random.randint(2_800_000, 14_000_000)
+        price = random.randint(1_800_000, 5_000_000)
         pool, gym, balcony = random.random() < 0.4, random.random() < 0.3, True
     else:  # Apartment
         bedrooms, size = random.randint(1, 4), random.randint(600, 2500)
-        price = random.randint(800_000, 18_000_000)
+        price = random.randint(650_000, 4_500_000)
         pool, gym, balcony = random.random() < 0.8, random.random() < 0.85, random.random() < 0.7
+
+    price = int(price * tier)
 
     return {
         "location": loc,
