@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { Loader2, Sparkles, Send } from "lucide-react";
 import { api, Property } from "@/lib/api";
 import PropertyCard from "@/components/PropertyCard";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface SearchResult {
   answer: string;
@@ -28,6 +30,10 @@ export default function SearchPage() {
     if (!q.trim()) return;
     setBusy(true);
     setError("");
+    // Clear the previous answer immediately — leaving stale cards on screen
+    // while a new search runs made it look like the old results were the
+    // answer to the new question.
+    setResult(null);
     try {
       setResult(await api.post<SearchResult>("/api/ai/search", { query: q }));
     } catch (e) {
@@ -84,6 +90,31 @@ export default function SearchPage() {
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+
+      {/* While Claude is thinking. AI calls here take several seconds, and a
+          bare spinner gives no sense of whether anything is happening. */}
+      {busy && !result && (
+        <div className="glass space-y-3 p-4">
+          <div className="flex items-center gap-2 text-sm text-slate-300">
+            <Loader2 className="h-4 w-4 animate-spin text-brand" />
+            Searching your inventory…
+          </div>
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-11/12" />
+          <Skeleton className="h-3 w-8/12" />
+        </div>
+      )}
+
+      {/* First visit: show what this thing can actually do. */}
+      {!result && !busy && !error && (
+        <div className="glass">
+          <EmptyState
+            icon={Sparkles}
+            title="Ask for anything in your inventory"
+            description="Describe a buyer the way you'd say it out loud — budget, area, bedrooms, must-haves — and the assistant searches your listings and explains why each one fits. Try one of the examples above to see it work."
+          />
+        </div>
+      )}
 
       {result && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">

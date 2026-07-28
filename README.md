@@ -2,9 +2,10 @@
 
 An AI assistant that automates what a Dubai real-estate broker does — inventory, leads,
 matching, pitching, marketing, follow-up, sales and revenue — built as a **multi-tenant SaaS**
-for real-estate agencies. Powered by **Claude (`claude-opus-4-8`)**.
+for real-estate agencies. Powered by **Claude**.
 
 > 📋 Full product & build roadmap: **[PLAN.md](PLAN.md)**
+> 🚀 Going live: **[DEPLOY.md](DEPLOY.md)** (Vercel frontend + container-hosted API)
 
 ## Current state
 
@@ -56,6 +57,11 @@ Then open **http://localhost:8000/docs**. First boot creates tables and seeds de
 ## Tech stack
 
 - **Backend:** FastAPI, async SQLAlchemy 2.0, asyncpg, PostgreSQL
-- **AI:** Anthropic Python SDK, `claude-opus-4-8` (adaptive thinking), tool-calling
-- **Frontend (planned):** Next.js, TypeScript, Tailwind CSS
+- **AI:** Anthropic Python SDK, tool-calling. Model set via `CLAUDE_MODEL` (default: Haiku)
+- **Frontend:** Next.js 14, TypeScript, Tailwind CSS
 - **Integrations (planned):** WhatsApp Business API, Gmail/SMTP, listing feeds (Bayut/Property Finder/DLD)
+
+## Deploying
+
+Vercel hosts the frontend; the FastAPI backend needs a container host
+(Render/Railway/Fly) plus a managed Postgres. Full walkthrough in **[DEPLOY.md](DEPLOY.md)**.

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { api, clearToken, getToken, setToken, User } from "./api";
+import { api, clearToken, getToken, setToken, setUnauthorizedHandler, User } from "./api";
 
 interface AuthCtx {
   user: User | null;
@@ -18,6 +18,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  // When any API call reports an expired token, drop the user back to /login.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      router.replace("/login");
+    });
+  }, [router]);
 
   useEffect(() => {
     if (!getToken()) {

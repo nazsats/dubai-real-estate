@@ -3,21 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Loader2, Plus, ArrowUpRight } from "lucide-react";
+import { Plus, ArrowUpRight, Trophy, XCircle, UserPlus } from "lucide-react";
 import { api, Lead, PipelineData } from "@/lib/api";
 import { aed, num } from "@/lib/format";
+import { STAGE_COLOR } from "@/lib/viz";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 
-const STAGE_COLOR: Record<string, string> = {
-  New: "#2dd4ff",
-  Contacted: "#38bdf8",
-  Qualified: "#6366f1",
-  Viewing: "#f59e0b",
-  Negotiation: "#e3b341",
-  Won: "#34d399",
-  Lost: "#ef4444",
-};
+/**
+ * Won and Lost use the reserved status colours, which are green and red —
+ * a pair that measures ΔE 4.1 under deuteranopia, i.e. effectively identical
+ * for red-green colourblind readers. An icon on each makes the outcome
+ * readable without relying on hue.
+ */
+const STAGE_ICON: Record<string, typeof Trophy> = { Won: Trophy, Lost: XCircle };
 
 export default function PipelinePage() {
   const [data, setData] = useState<PipelineData | null>(null);
@@ -49,20 +50,50 @@ export default function PipelinePage() {
 
   if (!data)
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-brand" />
+      <div className="space-y-5">
+        <Skeleton className="h-9 w-48" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-11 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+            </div>
+          ))}
+        </div>
       </div>
     );
 
   const total = Object.values(data.counts).reduce((a, b) => a + b, 0);
 
+  // A brand-new agency sees an entire board of empty columns, which explains
+  // nothing. Show them the one action that gets them started instead.
+  if (total === 0 && !adding)
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-50">Pipeline</h1>
+          <p className="mt-0.5 text-sm text-slate-400">Track every lead from first contact to closed deal.</p>
+        </div>
+        <div className="glass">
+          <EmptyState
+            icon={UserPlus}
+            title="No leads yet"
+            description="Add your first lead and it'll appear here. As you work them, drag them through the stages from New to Won — the Today page will then tell you who needs chasing."
+            actionLabel="Add your first lead"
+            onAction={() => setAdding(true)}
+          />
+        </div>
+      </div>
+    );
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Pipeline</h1>
-          <p className="text-sm text-slate-400">
-            {num(total)} leads · first contact to closed deal.
+          <h1 className="text-2xl font-bold tracking-tight text-slate-50">Pipeline</h1>
+          <p className="mt-0.5 text-sm text-slate-400">
+            {num(total)} {total === 1 ? "lead" : "leads"} · first contact to closed deal.
           </p>
         </div>
         <Button onClick={() => setAdding(!adding)}>
@@ -84,25 +115,39 @@ export default function PipelinePage() {
         </form>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      {/* A wrapping grid, not a horizontal scroller: Won and Lost used to sit
+          off-screen to the right, so closing stages were effectively invisible.
+          Columns now wrap onto a second row on smaller screens and all seven
+          fit side-by-side on wide ones. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
         {data.stages.map((stage) => {
           const shown = data.board[stage] ?? [];
           const count = data.counts[stage] ?? 0;
           const more = count - shown.length;
+          const Icon = STAGE_ICON[stage];
           return (
-            <div key={stage} className="flex w-72 shrink-0 flex-col">
+            <div key={stage} className="flex min-w-0 flex-col">
               <div
                 className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
                 style={{ borderTopColor: STAGE_COLOR[stage], borderTopWidth: 2 }}
               >
-                <span className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: STAGE_COLOR[stage] }} />
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                  {Icon ? (
+                    <Icon className="h-3.5 w-3.5" style={{ color: STAGE_COLOR[stage] }} />
+                  ) : (
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: STAGE_COLOR[stage] }}
+                    />
+                  )}
                   {stage}
                 </span>
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-slate-300">{num(count)}</span>
+                <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs tabular-nums text-slate-300">
+                  {num(count)}
+                </span>
               </div>
 
-              <div className="max-h-[68vh] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
                 {shown.map((lead) => (
                   <motion.div
                     key={lead.id}
@@ -111,13 +156,13 @@ export default function PipelinePage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="glass p-3"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-1">
                       <Link
                         href={`/leads/${lead.id}`}
-                        className="flex items-center gap-1 font-medium hover:text-brand"
+                        className="flex min-w-0 items-center gap-1 text-sm font-medium hover:text-brand"
                       >
-                        {lead.name}
-                        <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
+                        <span className="truncate">{lead.name}</span>
+                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 opacity-60" />
                       </Link>
                       {lead.score > 0 && (
                         <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">
@@ -144,8 +189,11 @@ export default function PipelinePage() {
                 ))}
 
                 {shown.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-600">
-                    Empty
+                  <div className="rounded-xl border border-dashed border-white/10 px-3 py-5 text-center">
+                    <p className="text-xs text-slate-500">Nothing in {stage}</p>
+                    <p className="mt-1 text-[11px] leading-snug text-slate-600">
+                      Move a lead here using the dropdown on its card.
+                    </p>
                   </div>
                 )}
 

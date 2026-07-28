@@ -19,12 +19,28 @@ SQM_TO_SQFT = 10.7639
 DUBAI_LOCATION_ID = "5002"
 
 # Standard Bayut locationExternalIDs for popular Dubai communities. Anything not listed
-# falls back to Dubai city-wide (5002), which still returns that area's listings mixed
-# with the rest of the city.
+# falls back to Dubai city-wide (5002); the import endpoint then filters the mapped
+# results by community name so the caller still gets ONLY the area they asked for.
 AREA_LOCATION_IDS = {
     "dubai": "5002",
     "downtown dubai": "6901",
 }
+
+# Common shorthand agents actually type → the community name Bayut uses.
+AREA_ALIASES = {
+    "jvc": "jumeirah village circle",
+    "jbr": "jumeirah beach residence",
+    "jlt": "jumeirah lakes towers",
+    "downtown": "downtown dubai",
+    "marina": "dubai marina",
+    "palm": "palm jumeirah",
+}
+
+
+def normalize_area(query: str) -> str:
+    """Lower-cased community name with shorthand expanded (jvc → jumeirah village circle)."""
+    q = (query or "").strip().lower()
+    return AREA_ALIASES.get(q, q)
 
 
 def _headers() -> dict:

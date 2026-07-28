@@ -41,3 +41,6 @@ tmp/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Local SQLite databases (dev only — production uses Supabase Postgres)
+backend/*.db

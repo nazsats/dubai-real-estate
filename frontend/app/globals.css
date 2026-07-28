@@ -3,22 +3,25 @@
 @tailwind utilities;
 
 @layer base {
+  /* Graphite + gold. The base is a near-neutral charcoal (barely blue) so the
+     gold accent and property photos carry the warmth; the accent is the brand
+     gold, used for actions and focus — never for chart series. */
   :root {
-    --background: 222 52% 5%;
-    --foreground: 213 31% 95%;
-    --card: 222 40% 8%;
-    --card-foreground: 213 31% 95%;
-    --primary: 192 100% 59%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 213 31% 95%;
-    --muted: 222 26% 13%;
-    --muted-foreground: 215 18% 60%;
-    --accent: 222 30% 16%;
-    --accent-foreground: 213 31% 95%;
-    --border: 222 28% 15%;
-    --input: 222 28% 15%;
-    --ring: 192 100% 59%;
+    --background: 230 20% 6%;
+    --foreground: 220 14% 95%;
+    --card: 227 19% 8%;
+    --card-foreground: 220 14% 95%;
+    --primary: 42 74% 57%;
+    --primary-foreground: 42 47% 8%;
+    --secondary: 228 14% 13%;
+    --secondary-foreground: 220 14% 95%;
+    --muted: 228 12% 12%;
+    --muted-foreground: 222 10% 62%;
+    --accent: 228 14% 15%;
+    --accent-foreground: 220 14% 95%;
+    --border: 228 13% 15%;
+    --input: 228 13% 15%;
+    --ring: 42 74% 57%;
     --radius: 0.9rem;
   }
 
@@ -33,9 +36,9 @@
   body {
     @apply bg-ink-900 text-slate-200 antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
-    background-image: radial-gradient(60% 50% at 12% -5%, rgba(45, 212, 255, 0.1), transparent 60%),
-      radial-gradient(50% 40% at 100% 0%, rgba(99, 102, 241, 0.1), transparent 55%),
-      radial-gradient(50% 45% at 85% 110%, rgba(52, 211, 153, 0.06), transparent 55%);
+    background-image: radial-gradient(60% 50% at 12% -5%, rgba(227, 179, 65, 0.08), transparent 60%),
+      radial-gradient(50% 40% at 100% 0%, rgba(99, 102, 241, 0.06), transparent 55%),
+      radial-gradient(50% 45% at 85% 110%, rgba(227, 179, 65, 0.04), transparent 55%);
     background-attachment: fixed;
   }
 
@@ -45,8 +48,41 @@
   }
 
   ::selection {
-    background: rgba(45, 212, 255, 0.25);
+    background: rgba(227, 179, 65, 0.3);
     color: #fff;
+  }
+
+  /* A single visible focus treatment for every interactive element. Keyboard
+     users could previously tab through the app with almost no indication of
+     where they were. */
+  :focus-visible {
+    outline: 2px solid theme("colors.brand.DEFAULT");
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Native controls inherit the dark surface so dropdown menus stop rendering
+     as bright white boxes against the dark UI. */
+  select option {
+    background-color: #171a22;
+    color: #e2e8f0;
+  }
+}
+
+/* Respect the OS "reduce motion" setting. Framer Motion entrances, the
+   shimmer, and hover lifts are all decorative — for anyone with vestibular
+   sensitivity they should simply not move. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .card-hover:hover {
+    transform: none;
   }
 }
 
@@ -64,7 +100,7 @@
   }
   .card-hover:hover {
     box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.07) inset, 0 26px 60px -30px rgba(0, 0, 0, 0.9),
-      0 0 30px -8px rgba(45, 212, 255, 0.25);
+      0 0 30px -8px rgba(227, 179, 65, 0.22);
   }
 
   /* Refined gradient text */
@@ -76,17 +112,23 @@
   .kicker {
     @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-brand/80;
   }
+
+  /* Horizontal scrollers (the pipeline board) — fade the right edge so it's
+     obvious there are more columns off-screen. */
+  .scroll-fade-x {
+    mask-image: linear-gradient(to right, black calc(100% - 40px), transparent 100%);
+  }
 }
 
 /* Leaflet dark tweaks */
 .leaflet-container {
-  background: #0a0f1e;
+  background: #0c0d12;
   border-radius: 1rem;
   font-family: var(--font-outfit), sans-serif;
 }
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
-  background: #141b2e;
+  background: #171a22;
   color: #e2e8f0;
   border-radius: 12px;
 }
@@ -106,6 +148,6 @@
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(45, 212, 255, 0.3);
+  background: rgba(227, 179, 65, 0.35);
   background-clip: content-box;
 }

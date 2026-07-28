@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -15,10 +15,14 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { UserPlus } from "lucide-react";
 import { api, BriefingData, BriefingLead } from "@/lib/api";
 import { aed } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatTile } from "@/components/ui/stat-tile";
+import { ListSkeleton, Skeleton, StatRowSkeleton } from "@/components/ui/skeleton";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import FollowUpFlow from "@/components/today/FollowUpFlow";
 
 export default function TodayPage() {
@@ -26,9 +30,12 @@ export default function TodayPage() {
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<{ name: string; message: string; busy: boolean } | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError("");
     api.get<BriefingData>("/api/briefing/today").then(setData).catch((e) => setError(e.message));
   }, []);
+
+  useEffect(load, [load]);
 
   async function makeDraft(lead: BriefingLead) {
     setDraft({ name: lead.name, message: "", busy: true });
@@ -44,76 +51,129 @@ export default function TodayPage() {
     }
   }
 
-  if (error) return <p className="text-red-300">Failed to load briefing: {error}</p>;
+  if (error) return <ErrorState message={error} onRetry={load} />;
+
   if (!data)
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-brand" />
+      <div className="space-y-6">
+        <TodayHeader />
+        <StatRowSkeleton />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="glass space-y-2 p-4">
+              <Skeleton className="mb-3 h-4 w-32" />
+              <ListSkeleton rows={3} />
+            </div>
+          ))}
+        </div>
       </div>
     );
 
   const s = data.stats;
-  const stats = [
-    { label: "Follow-ups due", value: s.follow_ups, icon: BellRing, accent: "from-brand to-brand-600" },
-    { label: "Hot leads", value: s.hot, icon: Flame, accent: "from-orange-400 to-red-600" },
-    { label: "Going cold", value: s.going_cold, icon: Snowflake, accent: "from-sky-300 to-blue-600" },
-    { label: "Tasks today", value: s.tasks_today, icon: CheckSquare, accent: "from-purple-400 to-fuchsia-600" },
-  ];
 
+  // Nothing to act on yet — say so plainly rather than showing four zeros.
+  if (s.active_leads === 0)
+    return (
+      <div className="space-y-6">
+        <TodayHeader />
+        <div className="glass">
+          <EmptyState
+            icon={UserPlus}
+            title="Nothing to chase yet"
+            description="Once you have active leads, this page tells you exactly who to contact today — who's gone quiet, who's hot, and what's due. It's the first page to open each morning."
+            actionLabel="Add your first lead"
+            actionHref="/pipeline"
+          />
+        </div>
+      </div>
+    );
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Today</h1>
-        <p className="text-sm text-slate-400">
-          Your AI sales manager — exactly who to act on, so no lead goes cold.
-        </p>
-      </div>
-
-      <FollowUpFlow />
+      <TodayHeader />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((st, i) => (
-          <motion.div
-            key={st.label}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="glass p-4"
-          >
-            <div className={`mb-3 inline-flex rounded-xl bg-gradient-to-br ${st.accent} p-2 shadow-glow`}>
-              <st.icon className="h-5 w-5 text-white" />
-            </div>
-            <div className="text-2xl font-bold">{st.value}</div>
-            <div className="text-xs text-slate-400">{st.label}</div>
-          </motion.div>
-        ))}
+        <StatTile
+          index={0}
+          label="Follow-ups due"
+          value={String(s.follow_ups)}
+          caption="Leads waiting longer than they should"
+          icon={BellRing}
+          tone={s.follow_ups > 0 ? "brand" : "neutral"}
+        />
+        <StatTile index={1} label="Hot leads" value={String(s.hot)} caption="Highest scoring and still open" icon={Flame} />
+        <StatTile
+          index={2}
+          label="Going cold"
+          value={String(s.going_cold)}
+          caption="No contact for 7 days or more"
+          icon={Snowflake}
+        />
+        <StatTile
+          index={3}
+          label="Tasks today"
+          value={String(s.tasks_today)}
+          caption="Due today or already overdue"
+          icon={CheckSquare}
+          tone={s.tasks_today > 0 ? "brand" : "neutral"}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Follow-ups due */}
-        <Section title="Follow-ups due" icon={BellRing} empty="All caught up — no follow-ups due 🎉">
-          {data.follow_ups.map((l) => (
-            <div key={l.lead_id} className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">{l.name}</span>
-                  <Badge variant="muted">{l.status}</Badge>
-                  {l.score > 0 && <Badge>{l.score}°</Badge>}
+      {/* THE action list — full width, numbered, most-overdue first. This is
+          the reason the page exists, so it comes before everything else. */}
+      <div className="glass p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+            <BellRing className="h-4 w-4 text-brand" /> Contact these people today
+          </h3>
+          <span className="text-xs text-slate-500">most overdue first</span>
+        </div>
+        {data.follow_ups.length === 0 ? (
+          <p className="py-4 text-center text-sm text-slate-500">
+            All caught up — no follow-ups due 🎉
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {data.follow_ups.map((l, i) => {
+              // Urgency is carried by text + position, colour just reinforces.
+              const urgent = (l.days_since_touch ?? 0) >= 7;
+              return (
+                <div
+                  key={l.lead_id}
+                  className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3"
+                >
+                  <span className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-xs font-bold text-slate-400 sm:flex">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium">{l.name}</span>
+                      <Badge variant="muted">{l.status}</Badge>
+                      {l.score > 0 && <Badge>{l.score}°</Badge>}
+                      {l.budget_max ? (
+                        <span className="text-xs text-slate-500">up to {aed(l.budget_max)}</span>
+                      ) : null}
+                    </div>
+                    <div className={`mt-0.5 text-xs ${urgent ? "text-red-300" : "text-amber-300/90"}`}>
+                      {l.reason}
+                      {urgent && " — at risk of going cold"}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => makeDraft(l)}>
+                    <Sparkles className="h-3.5 w-3.5" /> Draft
+                  </Button>
+                  <Link href={`/leads/${l.lead_id}`}>
+                    <Button size="sm" variant="ghost">
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
-                <div className="text-xs text-amber-300/90">{l.reason}</div>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => makeDraft(l)}>
-                <Sparkles className="h-3.5 w-3.5" /> Draft
-              </Button>
-              <Link href={`/leads/${l.lead_id}`}>
-                <Button size="sm" variant="ghost">
-                  <ArrowUpRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          ))}
-        </Section>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Hot leads */}
         <Section title="Hot leads" icon={Flame} empty="No scored leads yet.">
           {data.hot_leads.map((l) => (
@@ -152,6 +212,10 @@ export default function TodayPage() {
           ))}
         </Section>
       </div>
+
+      {/* How the engine works — reference material, so it lives last and
+          starts collapsed instead of pushing the action list below the fold. */}
+      <FollowUpFlow />
 
       {/* AI draft modal */}
       {draft && (
@@ -194,6 +258,17 @@ export default function TodayPage() {
           </motion.div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TodayHeader() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-50">Today</h1>
+      <p className="mt-0.5 text-sm text-slate-400">
+        Your AI sales manager — exactly who to act on, so no lead goes cold.
+      </p>
     </div>
   );
 }

@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, Download, Upload, FileDown, BedDouble, Maximize, MapPin } from "lucide-react";
+import { Loader2, Download, Upload, FileDown, BedDouble, Maximize, MapPin, Home } from "lucide-react";
 import { toast } from "sonner";
 import { api, API_BASE, getToken, Property } from "@/lib/api";
 import { aed } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function ListingsPage() {
   const [items, setItems] = useState<Property[]>([]);
@@ -33,9 +35,11 @@ export default function ListingsPage() {
   async function importBayut() {
     setImporting(true);
     try {
+      // 3 pages ≈ 75 listings city-wide; the backend keeps only the ones in
+      // the requested area, so more pages = better yield for one community.
       const res = await api.post<{ imported: number; skipped: number; fetched: number }>(
         "/api/properties/import/bayut",
-        { location: area, purpose: "for-sale", pages: 1 }
+        { location: area, purpose: "for-sale", pages: 3 }
       );
       toast.success(`Imported ${res.imported} listings (${res.skipped} already had)`);
       load();
@@ -87,8 +91,15 @@ export default function ListingsPage() {
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-sm">
-            <span className="mb-1 block text-xs text-slate-400">Import area (Bayut)</span>
-            <Input value={area} onChange={(e) => setArea(e.target.value)} className="w-44" />
+            <span className="mb-1 block text-xs text-slate-400">
+              Import live listings for area
+            </span>
+            <Input
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              placeholder="e.g. Dubai Marina, JVC"
+              className="w-48"
+            />
           </label>
           <Button onClick={importBayut} disabled={importing} variant="secondary">
             {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -106,12 +117,27 @@ export default function ListingsPage() {
       </div>
 
       {loading ? (
-        <div className="flex h-[50vh] items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-brand" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="glass overflow-hidden p-0">
+              <Skeleton className="h-44 w-full rounded-none" />
+              <div className="space-y-2 p-4">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="mt-3 h-3 w-2/3" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="glass p-10 text-center text-slate-400">
-          No listings yet. Import real ones from Bayut above (needs a RapidAPI key in the backend).
+        <div className="glass">
+          <EmptyState
+            icon={Home}
+            title="No listings yet"
+            description="Add inventory in one of two ways: import live Dubai listings from Bayut using the button above (needs a RapidAPI key set on the backend), or upload your own agency's stock as a CSV — download the template to see the expected columns."
+            actionLabel="Download CSV template"
+            onAction={downloadTemplate}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

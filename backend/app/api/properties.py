@@ -86,6 +86,20 @@ async def import_from_bayut(
         except httpx.HTTPError as exc:
             raise HTTPException(502, f"Bayut request failed: {exc}")
 
+    # The API only has location IDs for a couple of areas; everything else is
+    # fetched Dubai-wide. Filter the mapped rows to the requested community by
+    # name so "Dubai Marina" imports Marina listings — previously the whole
+    # city came back silently regardless of what the agent typed.
+    area = bayut.normalize_area(body.location)
+    if area and area != "dubai" and location_id == bayut.DUBAI_LOCATION_ID:
+        mapped = [r for r in mapped if area in (r["location"] or "").lower()]
+        if not mapped and fetched:
+            raise HTTPException(
+                404,
+                f"Fetched {fetched} Dubai listings but none matched '{body.location}'. "
+                "Try the full community name (e.g. 'Jumeirah Village Circle') or more pages.",
+            )
+
     # Dedupe against already-imported external IDs.
     ext_ids = [r["external_id"] for r in mapped if r["external_id"]]
     existing: set[str] = set()

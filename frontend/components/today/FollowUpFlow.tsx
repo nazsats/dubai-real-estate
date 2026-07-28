@@ -14,7 +14,8 @@ const STEPS = [
 ];
 
 export default function FollowUpFlow() {
-  const [open, setOpen] = useState(true);
+  // Collapsed by default: it's an explainer, not the day's work.
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="glass overflow-hidden">

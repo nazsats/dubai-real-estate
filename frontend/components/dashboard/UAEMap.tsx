@@ -2,14 +2,21 @@
 
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import { DashboardData } from "@/lib/api";
-import { aed } from "@/lib/format";
+import { aed, num } from "@/lib/format";
+import { STAGE_RAMP, STATUS } from "@/lib/viz";
 
-// Color by average price tier.
+/**
+ * Price band → colour.
+ *
+ * Price bands are ORDERED, so they use the ordinal ramp (deepening with price).
+ * The top band keeps a warm accent so "ultra prime" stands out against the
+ * cool ramp.
+ */
 function priceColor(avg: number): string {
-  if (avg >= 15_000_000) return "#e3b341"; // gold — ultra prime
-  if (avg >= 6_000_000) return "#2dd4ff"; // brand — prime
-  if (avg >= 2_500_000) return "#34d399"; // emerald — mid
-  return "#a855f7"; // violet — value
+  if (avg >= 15_000_000) return STATUS.warning; // ultra prime
+  if (avg >= 6_000_000) return STAGE_RAMP[4]; // prime
+  if (avg >= 2_500_000) return STAGE_RAMP[3]; // mid
+  return STAGE_RAMP[1]; // value
 }
 
 export default function UAEMap({ markers }: { markers: DashboardData["area_markers"] }) {
@@ -17,8 +24,10 @@ export default function UAEMap({ markers }: { markers: DashboardData["area_marke
 
   return (
     <MapContainer
-      center={[25.12, 55.23]}
-      zoom={10}
+      center={[25.11, 55.2]}
+      zoom={11}
+      minZoom={9}
+      maxZoom={14}
       scrollWheelZoom={false}
       style={{ height: "100%", width: "100%" }}
     >
@@ -27,21 +36,39 @@ export default function UAEMap({ markers }: { markers: DashboardData["area_marke
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       />
       {markers.map((m) => {
-        const radius = 8 + (m.count / maxCount) * 22;
+        // sqrt scaling so the circle's AREA tracks inventory — linear radius
+        // exaggerates big areas (a 4x inventory looked 16x the size).
+        const radius = 9 + 24 * Math.sqrt(m.count / maxCount);
         const color = priceColor(m.avg_price);
         return (
           <CircleMarker
             key={m.location}
             center={[m.lat, m.lng]}
             radius={radius}
-            pathOptions={{ color, fillColor: color, fillOpacity: 0.35, weight: 1.5 }}
+            pathOptions={{
+              color,
+              fillColor: color,
+              fillOpacity: 0.4,
+              weight: 1.5,
+              // dark ring separates overlapping circles (Marina/JBR/JLT cluster)
+              fillRule: "nonzero",
+            }}
+            eventHandlers={{
+              mouseover: (e) => e.target.setStyle({ fillOpacity: 0.65, weight: 2.5 }),
+              mouseout: (e) => e.target.setStyle({ fillOpacity: 0.4, weight: 1.5 }),
+            }}
           >
             <Tooltip direction="top" opacity={1}>
-              <div className="text-xs">
-                <div className="font-semibold">{m.location}</div>
-                <div>{m.count} listings</div>
-                <div>avg {aed(m.avg_price)}</div>
-                <div>~AED {m.avg_ppsf?.toLocaleString?.() ?? m.avg_ppsf}/sqft</div>
+              <div className="text-xs leading-relaxed">
+                <div className="text-[13px] font-bold">{m.location}</div>
+                <div className="mt-0.5 grid grid-cols-2 gap-x-3">
+                  <span className="text-slate-400">Listings</span>
+                  <span className="text-right font-semibold">{num(m.count)}</span>
+                  <span className="text-slate-400">Avg price</span>
+                  <span className="text-right font-semibold">{aed(m.avg_price)}</span>
+                  <span className="text-slate-400">Per sqft</span>
+                  <span className="text-right font-semibold">AED {num(Math.round(m.avg_ppsf))}</span>
+                </div>
               </div>
             </Tooltip>
           </CircleMarker>

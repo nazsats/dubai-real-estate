@@ -1,0 +1,74 @@
+# Render Blueprint — deploys the FastAPI backend.
+# In Render: New → Blueprint → pick this repo. Render reads this file from the
+# repo root; `rootDir` below points the build at backend/.
+#
+# The database is Supabase, not Render — see docs/supabase-setup.md. Three values
+# are NOT set here and must be entered in the Render dashboard:
+#   DATABASE_URL       — Supabase POOLER connection string (see notes below)
+#   ANTHROPIC_API_KEY  — your secret, never commit it
+#   CORS_ORIGINS       — your Vercel URL, which doesn't exist until you deploy the frontend
+
+services:
+  - type: web
+    name: dubai-broker-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore # closest Render region to the UAE
+    # Liveness only — deliberately does no database call, so a brief DB blip
+    # can't make Render restart a perfectly healthy instance.
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production # turns on the startup safety checks
+
+      # Render generates a strong random value on first deploy and keeps it
+      # stable across redeploys. Rotating it invalidates all existing logins.
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Supabase → Settings → Database → Connection string → **Session pooler**.
+      # Copy it verbatim; do not assemble it by hand. Two gotchas:
+      #   1. Use the POOLER host (aws-<n>-<region>.pooler.supabase.com), NOT the
+      #      direct db.<ref>.supabase.co host — that one is IPv6-only.
+      #   2. The pooler username is postgres.<project-ref>, not plain postgres.
+      # Paste it as postgresql://… — the app adds the async driver itself.
+      - key: DATABASE_URL
+        sync: false
+
+      # sync:false = Render prompts you for this in the dashboard instead of
+      # reading it from this file. Keeps the key out of git.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Set this to your Vercel URL after step 3 of DEPLOY.md, then redeploy.
+      # Exact origin, no trailing slash. e.g. https://dubai-broker.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Optional — only needed for Bayut listing imports.
+      - key: RAPIDAPI_KEY
+        sync: false
+
+      - key: ALLOW_VERCEL_PREVIEWS
+        value: "true" # also accept *.vercel.app preview deploys
+      - key: SEED_DEMO_DATA
+        value: "false" # keep 2,000 fake listings out of the real database
+      - key: DEBUG
+        value: "false"
+      - key: ENABLE_DOCS
+        value: "false" # flip to true temporarily if you need /docs while testing
+      - key: AUTO_CREATE_TABLES
+        value: "true" # creates tables on first boot; swap for Alembic before schema changes
+
+      # Connection pool per worker. Supabase's free tier allows a limited number
+      # of pooler connections — raise these only when you raise the DB plan.
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+
+# No `databases:` block — Postgres lives in Supabase (docs/supabase-setup.md),
+# which doesn't expire after 90 days the way Render's free tier does, and gives
+# you RLS and file storage for the property-images feature.

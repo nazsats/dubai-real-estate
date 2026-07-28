@@ -1,9 +1,9 @@
 """Anthropic async client + a small manual tool-use loop.
 
-Uses the official Anthropic Python SDK with `claude-opus-4-8` and adaptive
-thinking (per the claude-api guidance). We run a manual agentic loop rather
-than the SDK tool runner so each tool can be closed over a tenant-scoped DB
-session.
+Uses the official Anthropic Python SDK. The model and thinking mode come from
+config (`CLAUDE_MODEL`, `USE_THINKING`) — the default is Haiku with thinking off
+to keep costs down. We run a manual agentic loop rather than the SDK tool runner
+so each tool can be closed over a tenant-scoped DB session.
 """
 from collections.abc import Awaitable, Callable
 from functools import lru_cache

@@ -11,13 +11,15 @@ const config: Config = {
         display: ["var(--font-display)", "var(--font-outfit)", "sans-serif"],
       },
       colors: {
-        // Brand palette — refined azure + luxury accents
-        ink: { 950: "#070b16", 900: "#0a0f1e", 800: "#0e1424", 700: "#141b2e", 600: "#1b2236" },
+        // Brand palette — graphite base + Dubai gold accent.
+        // Gold is the UI accent ONLY (buttons, focus, links); chart series
+        // colours live in lib/viz.ts and are validated separately.
+        ink: { 950: "#08090c", 900: "#0c0d12", 800: "#111319", 700: "#171a22", 600: "#1f232d" },
         brand: {
-          DEFAULT: "#2dd4ff",
-          400: "#38bdf8",
-          500: "#1ba9e8",
-          600: "#0a84d8",
+          DEFAULT: "#e3b341",
+          400: "#f0c968",
+          500: "#cf9a2e",
+          600: "#b17f1f",
           gold: "#e3b341",
           emerald: "#34d399",
         },
@@ -40,8 +42,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(45,212,255,0.10), 0 8px 30px -12px rgba(45,212,255,0.35)",
-        "glow-lg": "0 0 0 1px rgba(45,212,255,0.14), 0 18px 50px -16px rgba(45,212,255,0.45)",
+        glow: "0 0 0 1px rgba(227,179,65,0.10), 0 8px 30px -12px rgba(227,179,65,0.35)",
+        "glow-lg": "0 0 0 1px rgba(227,179,65,0.14), 0 18px 50px -16px rgba(227,179,65,0.45)",
         card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 16px 40px -24px rgba(0,0,0,0.8)",
         lift: "0 1px 0 0 rgba(255,255,255,0.06) inset, 0 24px 60px -28px rgba(0,0,0,0.85)",
       },
