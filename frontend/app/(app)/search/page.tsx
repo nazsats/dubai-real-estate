@@ -22,6 +22,7 @@ import {
   SendResponse,
 } from "@/lib/api";
 import PropertyCard from "@/components/PropertyCard";
+import Markdown from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -349,10 +350,11 @@ function Bubble({
         className={
           isUser
             ? "max-w-[85%] rounded-2xl rounded-br-md bg-brand/15 px-4 py-2.5 text-sm text-slate-100 ring-1 ring-brand/25"
-            : "max-w-[95%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-white/[0.04] px-4 py-3 text-sm leading-relaxed text-slate-200"
+            : "max-w-[95%] rounded-2xl rounded-bl-md bg-white/[0.04] px-4 py-3 text-sm leading-relaxed text-slate-200"
         }
       >
-        {message.content}
+        {/* User text is shown verbatim; only assistant replies are Markdown. */}
+        {isUser ? message.content : <Markdown text={message.content} />}
       </div>
 
       {cards.length > 0 && (
