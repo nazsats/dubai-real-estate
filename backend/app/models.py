@@ -158,3 +158,45 @@ class Deal(Base):
 
 
 DEAL_STAGES = ("Negotiation", "Won", "Lost")
+
+
+class DldTransaction(Base):
+    """A recorded Dubai Land Department sale — official market history.
+
+    Market data is public and shared by every tenant, so there is no `agency_id`
+    (same rationale as shared-pool properties). This is what an agent's price
+    claims get grounded in: not asking prices from portals, but what buyers
+    actually paid.
+
+    Source: the DLD `Transactions` dataset on dubaipulse.gov.ae. Loaded via
+    `import_dld.py` — see docs/dld-data.md.
+    """
+
+    __tablename__ = "dld_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # DLD's own transaction id — makes re-importing idempotent.
+    external_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+
+    transaction_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    area: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    building: Mapped[str | None] = mapped_column(String(200))
+    project: Mapped[str | None] = mapped_column(String(200))
+
+    property_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    rooms: Mapped[int | None] = mapped_column(Integer, index=True)  # NULL = studio/unknown
+    size_sqft: Mapped[int | None] = mapped_column(Integer)
+
+    price_aed: Mapped[float] = mapped_column(Numeric(16, 2), nullable=False, index=True)
+    # Stored rather than derived: DLD reports its own per-metre figure, and
+    # deriving it per query would prevent indexing the column.
+    price_per_sqft: Mapped[float | None] = mapped_column(Numeric(12, 2), index=True)
+
+    # "Sales" | "Mortgages" | "Gifts" — filter to Sales for price analysis.
+    transaction_type: Mapped[str] = mapped_column(String(40), default="Sales", index=True)
+    # "Off-Plan" | "Ready" — the two behave like different markets.
+    registration_type: Mapped[str | None] = mapped_column(String(40), index=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

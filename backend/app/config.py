@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     rapidapi_key: str = ""
     rapidapi_bayut_host: str = "byut-api.p.rapidapi.com"
 
+    # Voyage AI — embeddings for the knowledge-base RAG (voyageai.com).
+    # Claude has no embedding endpoint; Voyage is Anthropic's recommended
+    # provider. Optional: without it the knowledge tool reports itself
+    # unavailable and the rest of the brain carries on.
+    voyage_api_key: str = ""
+
     # AI models — see the claude-api skill.
     # Default to Haiku (cheapest) to control cost; smart model is opt-in per call.
     claude_model: str = "claude-haiku-4-5"

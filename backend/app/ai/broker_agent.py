@@ -8,8 +8,24 @@ import json
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.client import generate, run_tool_loop, text_of
+from app.ai import knowledge, market
+from app.ai.client import cache_min_tokens, generate, run_tool_loop, text_of
+from app.config import get_settings
 from app.models import Lead, Property
+
+
+def prefix_is_cacheable(system: str, tools: list[dict]) -> bool:
+    """Whether the tools+system prefix is long enough for the model to cache it.
+
+    Estimated rather than measured with count_tokens: that would add a network
+    round trip to every request to decide something that only changes when the
+    code changes. ~3.6 chars/token is conservative for English + JSON schemas,
+    so this under-estimates and errs toward not marking a prefix that wouldn't
+    have cached anyway.
+    """
+    chars = len(system) + len(json.dumps(tools))
+    estimated = chars / 3.6
+    return estimated >= cache_min_tokens(get_settings().claude_model)
 
 DUBAI_AREAS = (
     "Dubai Marina, Downtown Dubai, Palm Jumeirah, Dubai Hills Estate, Business Bay, "
@@ -112,17 +128,96 @@ SEARCH_TOOL = {
     },
 }
 
+MARKET_TOOL = {
+    "name": "market_check",
+    "description": (
+        "Official Dubai Land Department SALE statistics for a slice of the market: median "
+        "price, price per sqft, range, and trend direction. Use this for ANY question about "
+        "what things are actually worth, whether an asking price is fair, how a area is "
+        "performing, or where the market is heading. This is recorded transaction history — "
+        "what buyers really paid — not asking prices. Prefer it over your own knowledge for "
+        "any price or trend claim."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "area": {"type": "string", "description": f"Dubai area, e.g. one of: {DUBAI_AREAS}"},
+            "property_type": {"type": "string", "enum": ["Apartment", "Villa", "Townhouse", "Penthouse"]},
+            "rooms": {"type": "integer", "description": "Bedroom count; 0 for studio"},
+            "months": {"type": "integer", "description": "Look-back window in months (default 12)"},
+            "registration_type": {"type": "string", "enum": ["Off-Plan", "Ready"]},
+        },
+    },
+}
+
+COMPARABLES_TOOL = {
+    "name": "find_comparables",
+    "description": (
+        "Individual recent DLD sales most similar to a given property — the evidence an agent "
+        "shows a buyer or seller to justify a price. Use when asked to price a specific unit, "
+        "back up a valuation, or answer 'what did similar places sell for?'."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "area": {"type": "string", "description": "Dubai area (required)"},
+            "property_type": {"type": "string", "enum": ["Apartment", "Villa", "Townhouse", "Penthouse"]},
+            "rooms": {"type": "integer"},
+            "size_sqft": {"type": "integer", "description": "Target size; results ranked by closeness"},
+            "months": {"type": "integer", "description": "Look-back window (default 6)"},
+        },
+        "required": ["area"],
+    },
+}
+
+KNOWLEDGE_TOOL = {
+    "name": "knowledge_lookup",
+    "description": (
+        "Search the broker knowledge base for process, fees, regulation, and paperwork: DLD "
+        "transfer fees, Oqood/off-plan registration, golden-visa thresholds, mortgage steps, "
+        "escrow, service charges, NOC, agency law. Use this whenever the answer is a rule, a "
+        "cost, a timeline, or a procedure rather than a listing or a price statistic. Never "
+        "state a fee, threshold, or legal requirement from memory — look it up."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "question": {
+                "type": "string",
+                "description": "The question in full, in natural language — this is embedded for semantic search, so keep the wording rich rather than reducing it to keywords.",
+            }
+        },
+        "required": ["question"],
+    },
+}
+
 SEARCH_SYSTEM = (
-    "You are an expert Dubai real-estate assistant for agents. Only handle Dubai real estate; "
-    "if asked anything else, say so briefly. Use the search_properties tool to answer any "
-    "property request, then present results clearly: building, area, bedrooms, size, price, key "
-    "amenities. Lead with the best matches and add one short line of agent-useful insight "
-    "(value, view, or trade-off). Be concise."
+    "You are an expert Dubai real-estate assistant working alongside a licensed agent. "
+    "Handle Dubai real estate only; if asked anything else, say so briefly.\n\n"
+    "You have four tools. Choose deliberately:\n"
+    "  search_properties — the agent's own inventory and the shared pool. Use to FIND units.\n"
+    "  market_check      — official DLD sale statistics. Use for what things are WORTH, "
+    "whether a price is fair, and how an area is trending.\n"
+    "  find_comparables  — individual recent DLD sales. Use to EVIDENCE a specific price.\n"
+    "  knowledge_lookup  — fees, regulation, process, timelines. Use for RULES.\n\n"
+    "Chain them when a question needs it: pricing a unit usually means market_check for the "
+    "level plus find_comparables for the proof.\n\n"
+    "Ground every claim in tool output. Never state a price, a market trend, a fee, or a legal "
+    "threshold from your own knowledge — Dubai rules and prices change, and a wrong figure "
+    "repeated to a client is worse than no answer. If the tools return nothing, say so plainly.\n\n"
+    "Answer like a colleague briefing another professional: lead with the number or the "
+    "recommendation, then the supporting detail. Be concise; skip preamble."
 )
 
 
 async def nl_search(session: AsyncSession, agency_id: int | None, query: str, history: list[dict]):
-    """Run the conversational finder. Returns (answer_text, [Property]) for the last search."""
+    """Run the conversational finder. Returns (answer_text, [Property]) for the last search.
+
+    The model now has inventory, market statistics, comparables, and the
+    knowledge base — so one question can be answered end to end ("is 2.4M fair
+    for this Marina 2-bed, and what does the buyer pay in fees?") instead of
+    the agent stitching three lookups together by hand.
+    """
     last_results: list[Property] = []
 
     async def _exec_search(args: dict) -> str:
@@ -133,12 +228,47 @@ async def nl_search(session: AsyncSession, agency_id: int | None, query: str, hi
             return "No matching properties. Suggest widening budget, area, or filters."
         return "\n".join(describe(p) for p in props)
 
+    async def _exec_market(args: dict) -> str:
+        stats = await market.market_stats(session, **args)
+        return market.format_stats(stats)
+
+    async def _exec_comparables(args: dict) -> str:
+        rows = await market.comparables(session, **args)
+        return market.format_comparables(rows)
+
+    async def _exec_knowledge(args: dict) -> str:
+        try:
+            rows = await knowledge.search_knowledge(
+                session, args["question"], agency_id=agency_id
+            )
+        except knowledge.EmbeddingUnavailable as exc:
+            # A missing embedding key disables one tool, not the assistant — but
+            # the model will otherwise fall back to reciting fees from memory,
+            # which is the exact failure this tool exists to prevent. Observed
+            # in testing: without this, it answered "I know the standard
+            # structure is..." and listed figures it had not looked up.
+            return (
+                f"Knowledge base unavailable ({exc}). Tell the agent the knowledge base is "
+                "not configured and that they should verify with DLD directly. Do NOT supply "
+                "fee amounts, percentages, thresholds, or timelines from your own knowledge — "
+                "an unverified figure repeated to a client is worse than no answer."
+            )
+        return knowledge.format_knowledge(rows)
+
+    tools = [SEARCH_TOOL, MARKET_TOOL, COMPARABLES_TOOL, KNOWLEDGE_TOOL]
     messages = [*history, {"role": "user", "content": query}]
     response = await run_tool_loop(
         system=SEARCH_SYSTEM,
         messages=messages,
-        tools=[SEARCH_TOOL],
-        executors={"search_properties": _exec_search},
+        tools=tools,
+        executors={
+            "search_properties": _exec_search,
+            "market_check": _exec_market,
+            "find_comparables": _exec_comparables,
+            "knowledge_lookup": _exec_knowledge,
+        },
+        # Caching pays only once the stable prefix clears the model's minimum.
+        cache_prefix=prefix_is_cacheable(SEARCH_SYSTEM, tools),
     )
     return text_of(response), last_results
 
