@@ -6,7 +6,7 @@ column + filtering in queries gives us the isolation seam to build on.
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -158,6 +158,63 @@ class Deal(Base):
 
 
 DEAL_STAGES = ("Negotiation", "Won", "Lost")
+
+
+class Conversation(Base):
+    """A saved AI Search chat thread.
+
+    Scoped to both agency and user: an agent's chats are their own working
+    notes, not shared agency inventory, so `owner_id` narrows further than the
+    usual `agency_id` filter.
+    """
+
+    __tablename__ = "conversations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agency_id: Mapped[int] = mapped_column(ForeignKey("agencies.id"), index=True, nullable=False)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+
+    title: Mapped[str] = mapped_column(String(160), default="New chat")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Bumped on every message so the sidebar can sort by recent activity.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+    messages: Mapped[list["ChatMessage"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.id",
+    )
+
+
+class ChatMessage(Base):
+    """One turn in a conversation.
+
+    Only the visible text is stored, not Claude's intermediate tool_use /
+    tool_result blocks. Replaying those faithfully means every tool_use must be
+    paired with its matching tool_result or the API rejects the request — a
+    brittle invariant to maintain across edits and deletes, for context the
+    model does not need. A plain user/assistant text transcript is valid on
+    replay and is enough for follow-ups like "what about 3 beds instead?".
+
+    `property_ids` records which listings were shown so the cards can be
+    re-rendered on reload. IDs rather than a snapshot: prices change, and a
+    stale copy shown next to live inventory is worse than a missing card.
+    """
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    property_ids: Mapped[list | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
 
 class DldTransaction(Base):

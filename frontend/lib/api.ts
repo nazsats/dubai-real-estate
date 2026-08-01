@@ -131,6 +131,36 @@ export interface User {
   full_name: string;
   role: string;
 }
+// ── AI Search chat ────────────────────────────────────────────────
+export interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  property_ids: number[];
+  created_at: string;
+}
+
+export interface Conversation {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: ChatMessage[];
+  properties: Property[];
+}
+
+export interface SendResponse {
+  conversation_id: number;
+  title: string;
+  user_message: ChatMessage;
+  assistant_message: ChatMessage;
+  properties: Property[];
+}
+
 export interface Lead {
   id: number;
   name: string;

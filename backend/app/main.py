@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ai, analytics, auth, briefing, deals, health, leads, pipeline, properties, tasks
+from app.api import (
+    ai, analytics, auth, briefing, chat, deals, health, leads, pipeline, properties, tasks,
+)
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.seed import seed_if_empty
@@ -57,7 +59,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (health, auth, properties, leads, pipeline, tasks, deals, analytics, briefing, ai):
+for module in (health, auth, properties, leads, pipeline, tasks, deals, analytics, briefing, ai, chat):
     app.include_router(module.router)
 
 
