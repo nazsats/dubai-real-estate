@@ -11,6 +11,8 @@ import {
   Trash2,
   PanelLeft,
   X,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -25,6 +27,7 @@ import PropertyCard from "@/components/PropertyCard";
 import Markdown from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSpeech } from "@/lib/use-speech";
 
 const EXAMPLES = [
   "3 bed apartments in Dubai Marina under 5M with a pool",
@@ -46,6 +49,44 @@ export default function ChatPage() {
 
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Dictation ──
+  const {
+    supported: speechSupported,
+    listening,
+    transcript,
+    interim,
+    error: speechError,
+    start,
+    stop,
+    reset: resetSpeech,
+  } = useSpeech();
+
+  // Text the box already held when dictation began, so speech appends to what
+  // was typed rather than replacing it.
+  const baseText = useRef("");
+
+  function startVoice() {
+    baseText.current = input.trim();
+    resetSpeech();
+    start();
+    inputRef.current?.focus();
+  }
+
+  function stopVoice() {
+    stop();
+  }
+
+  // Confirmed speech flows into the box; interim words render separately as a
+  // ghost overlay so a half-heard phrase never ends up in the sent message.
+  useEffect(() => {
+    if (!transcript) return;
+    setInput(baseText.current ? `${baseText.current} ${transcript}` : transcript);
+  }, [transcript]);
+
+  useEffect(() => {
+    if (speechError) toast.error(speechError);
+  }, [speechError]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -90,6 +131,11 @@ export default function ChatPage() {
   async function send(text: string) {
     const body = text.trim();
     if (!body || busy) return;
+    // Close the mic on send: a hot mic after submitting silently captures the
+    // next thing said into an empty box.
+    stop();
+    resetSpeech();
+    baseText.current = "";
     setInput("");
     setBusy(true);
 
@@ -219,22 +265,63 @@ export default function ChatPage() {
               }}
               className="flex items-end gap-2"
             >
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                rows={1}
-                placeholder="Ask about inventory, prices, comparables, or fees…"
-                className="max-h-40 min-h-[2.75rem] flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm outline-none transition focus:border-brand/50"
-                style={{ fieldSizing: "content" } as React.CSSProperties}
-              />
+              <div className="relative flex-1">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  rows={1}
+                  placeholder={
+                    listening ? "Listening — speak now…" : "Ask about inventory, prices, comparables, or fees…"
+                  }
+                  className={`max-h-40 min-h-[2.75rem] w-full resize-none rounded-xl border bg-white/[0.03] px-3 py-3 pr-11 text-sm outline-none transition ${
+                    listening ? "border-brand/60" : "border-white/10 focus:border-brand/50"
+                  }`}
+                  style={{ fieldSizing: "content" } as React.CSSProperties}
+                />
+
+                {/* Words still being revised — shown greyed and italic after the
+                    confirmed text, so the sentence visibly forms as you speak
+                    without polluting the value you'd send. */}
+                {interim && (
+                  <span className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%-3rem)] text-sm italic text-slate-500">
+                    <span className="invisible">{input}</span>
+                    {input ? " " : ""}
+                    {interim}
+                  </span>
+                )}
+
+                {speechSupported && (
+                  <button
+                    type="button"
+                    onClick={listening ? stopVoice : startVoice}
+                    aria-label={listening ? "Stop dictation" : "Dictate your question"}
+                    aria-pressed={listening}
+                    className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg transition ${
+                      listening
+                        ? "bg-brand/20 text-brand ring-1 ring-brand/40"
+                        : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                    }`}
+                  >
+                    {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    {listening && (
+                      <span className="absolute inset-0 animate-ping rounded-lg bg-brand/20" aria-hidden />
+                    )}
+                  </button>
+                )}
+              </div>
+
               <Button type="submit" size="icon" disabled={busy || !input.trim()} className="h-11 w-11 shrink-0">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </form>
             <p className="mt-1.5 px-1 text-[10px] text-slate-600">
-              Enter to send · Shift+Enter for a new line
+              {listening
+                ? "Listening… pause when you're done, then press Enter to send"
+                : speechSupported
+                  ? "Enter to send · Shift+Enter for a new line · 🎤 to dictate"
+                  : "Enter to send · Shift+Enter for a new line"}
             </p>
           </div>
         </div>

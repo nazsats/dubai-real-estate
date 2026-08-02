@@ -15,7 +15,9 @@ import {
   Sun,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react";
+import { api, ReviewCounts } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 /**
@@ -36,6 +38,14 @@ const NAV_GROUPS = [
     items: [
       { href: "/search", label: "AI Search", icon: Sparkles, hint: "Ask in plain English" },
       { href: "/listings", label: "Listings", icon: Home, hint: "Your inventory" },
+    ],
+  },
+  {
+    label: "Sell",
+    items: [
+      { href: "/my-listings", label: "My Listings", icon: Building2, hint: "What you've submitted" },
+      // Admin-only; filtered out below for agents rather than hidden with CSS.
+      { href: "/review", label: "Verify", icon: ShieldCheck, hint: "Approve broker stock", adminOnly: true },
     ],
   },
   {
@@ -63,18 +73,36 @@ function Brand({ onClick }: { onClick?: () => void }) {
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [pending, setPending] = useState(0);
+
+  // Admins need to know work is waiting without opening the page. Refreshed on
+  // navigation so approving something updates the badge on the way out.
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .get<ReviewCounts>("/api/listings/review/counts")
+      .then((c) => setPending(c.pending))
+      .catch(() => setPending(0));
+  }, [isAdmin, pathname]);
 
   return (
     <>
       <nav className="flex-1 space-y-5 overflow-y-auto">
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => {
+          const items = group.items.filter((i) => !("adminOnly" in i && i.adminOnly) || isAdmin);
+          if (items.length === 0) return null;
+          return (
           <div key={group.label}>
             <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               {group.label}
             </p>
             <div className="space-y-0.5">
-              {group.items.map(({ href, label, icon: Icon, hint }) => {
-                const active = pathname === href;
+              {items.map(({ href, label, icon: Icon, hint }) => {
+                // Sub-routes keep the parent highlighted, so /listings/42 still
+                // reads as "you are in Listings".
+                const active = pathname === href || pathname.startsWith(`${href}/`);
+                const badge = href === "/review" ? pending : 0;
                 return (
                   <Link
                     key={href}
@@ -100,12 +128,18 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                         {hint}
                       </span>
                     </span>
+                    {badge > 0 && (
+                      <span className="relative z-10 ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400/20 px-1.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-400/30">
+                        {badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="mt-auto border-t border-white/10 pt-3">

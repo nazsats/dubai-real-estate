@@ -35,6 +35,8 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="agent")  # admin | agent
+    # Business contact shown to buyers on the listings this agent posts.
+    phone: Mapped[str | None] = mapped_column(String(40))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -61,8 +63,38 @@ class Property(Base):
     possession: Mapped[str] = mapped_column(String(40), default="Ready")
     image_url: Mapped[str | None] = mapped_column(Text)  # cover photo
     external_id: Mapped[str | None] = mapped_column(String(64), index=True)  # source id (dedupe imports)
-    source: Mapped[str] = mapped_column(String(20), default="manual")  # manual | bayut | seed
+    source: Mapped[str] = mapped_column(String(20), default="manual")  # manual | bayut | seed | csv | broker
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # ── Listing detail (shown on the property page, optional on import) ──
+    description: Mapped[str | None] = mapped_column(Text)
+    bathrooms: Mapped[int | None] = mapped_column(Integer)
+    parking: Mapped[int | None] = mapped_column(Integer)
+    furnished: Mapped[bool] = mapped_column(Boolean, default=False)
+    reference: Mapped[str | None] = mapped_column(String(64))  # agency's own ref / permit no.
+
+    # ── Who listed it ──
+    # The agent a buyer enquiry should reach. Null on imported and seeded stock,
+    # which has no human behind it — the detail page falls back to the agency.
+    listed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+
+    # ── Verification ──
+    # Broker-submitted listings are moderated before they go live. Everything
+    # ingested by an admin (seed, Bayut, CSV) is created already approved, so
+    # this doesn't retroactively hide existing inventory.
+    status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    listed_by: Mapped["User | None"] = relationship(foreign_keys=[listed_by_id])
+
+
+# A broker-submitted listing moves pending -> approved | rejected. Rejected
+# listings stay visible to their author (with the reason) so they can fix and
+# resubmit rather than starting over.
+LISTING_STATUSES = ("pending", "approved", "rejected")
 
 
 # Pipeline stages a lead can occupy.

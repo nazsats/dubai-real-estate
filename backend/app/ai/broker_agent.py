@@ -63,6 +63,7 @@ async def fetch_properties(
     only_available: bool = True,
     sort: str = "relevance",
     limit: int = 12,
+    include_unapproved: bool = False,
 ) -> list[Property]:
     """Tenant-scoped property query: this agency's listings + the shared pool."""
     stmt = select(Property)
@@ -71,6 +72,11 @@ async def fetch_properties(
         stmt = stmt.where(or_(Property.agency_id == agency_id, Property.agency_id.is_(None)))
 
     conds = []
+    # Moderation gate. Enforced here rather than in each caller so a new endpoint
+    # or AI tool cannot accidentally surface a listing awaiting review — every
+    # property read in the app funnels through this function.
+    if not include_unapproved:
+        conds.append(Property.status == "approved")
     if only_available:
         conds.append(Property.available.is_(True))
     if location:

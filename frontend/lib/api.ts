@@ -131,6 +131,53 @@ export interface User {
   full_name: string;
   role: string;
 }
+// ── Listings & verification ───────────────────────────────────────
+export interface AgentContact {
+  id: number;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+}
+
+export interface PropertyDetail extends Property {
+  description?: string | null;
+  bathrooms?: number | null;
+  parking?: number | null;
+  furnished: boolean;
+  reference?: string | null;
+  possession: string;
+  status: string;
+  rejection_reason?: string | null;
+  submitted_at?: string | null;
+  listed_by?: AgentContact | null;
+  agency_name?: string | null;
+}
+
+export interface ListingSubmission {
+  location: string;
+  building: string;
+  price: number;
+  type: string;
+  bedrooms: number;
+  size_sqft: number;
+  bathrooms?: number | null;
+  parking?: number | null;
+  has_pool: boolean;
+  has_gym: boolean;
+  has_balcony: boolean;
+  furnished: boolean;
+  possession: string;
+  description?: string | null;
+  image_url?: string | null;
+  reference?: string | null;
+}
+
+export interface ReviewCounts {
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 // ── AI Search chat ────────────────────────────────────────────────
 export interface ChatMessage {
   id: number;
@@ -198,6 +245,7 @@ export interface Property {
   size_sqft: number;
   has_pool: boolean;
   has_gym: boolean;
+  has_balcony: boolean;
   available: boolean;
   possession: string;
   image_url?: string | null;

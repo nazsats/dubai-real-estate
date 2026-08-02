@@ -1,7 +1,7 @@
 """Pydantic request/response schemas."""
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ── Auth & users ──────────────────────────────────────────────
@@ -67,6 +67,64 @@ class PropertyOut(PropertyBase):
     external_id: str | None = None
     source: str = "manual"
     created_at: datetime
+    status: str = "approved"
+
+
+class AgentContact(BaseModel):
+    """The person a buyer enquiry reaches.
+
+    Deliberately not the full UserOut: a public-facing listing exposes a name
+    and business contact details, never the account's role or internal ids
+    beyond what's needed to route the enquiry.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    full_name: str
+    email: str
+    phone: str | None = None
+
+
+class PropertyDetail(PropertyOut):
+    """Everything the property page shows, including who to contact."""
+
+    description: str | None = None
+    bathrooms: int | None = None
+    parking: int | None = None
+    furnished: bool = False
+    reference: str | None = None
+    rejection_reason: str | None = None
+    submitted_at: datetime | None = None
+    listed_by: AgentContact | None = None
+    agency_name: str | None = None
+
+
+class ListingSubmission(BaseModel):
+    """A broker submitting their own listing for review."""
+
+    location: str = Field(min_length=2, max_length=120)
+    building: str = Field(min_length=2, max_length=160)
+    price: float = Field(gt=0, le=1_000_000_000)
+    type: str
+    bedrooms: int = Field(ge=0, le=20)
+    size_sqft: int = Field(gt=0, le=200_000)
+    bathrooms: int | None = Field(default=None, ge=0, le=20)
+    parking: int | None = Field(default=None, ge=0, le=20)
+    has_pool: bool = False
+    has_gym: bool = False
+    has_balcony: bool = False
+    furnished: bool = False
+    possession: str = "Ready"
+    description: str | None = Field(default=None, max_length=4000)
+    image_url: str | None = Field(default=None, max_length=1000)
+    reference: str | None = Field(default=None, max_length=64)
+
+
+class ReviewRequest(BaseModel):
+    approve: bool
+    # Required on rejection: "rejected" with no explanation gives the broker
+    # nothing to act on and generates a support conversation instead of a fix.
+    reason: str | None = Field(default=None, max_length=1000)
 
 
 class BayutImportRequest(BaseModel):
