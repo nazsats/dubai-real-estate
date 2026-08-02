@@ -14,8 +14,9 @@ deployment while each sees only its own data.
 |---|---|
 | **Frontend** | Next.js 14 · TypeScript · Tailwind · Recharts · Leaflet · Framer Motion |
 | **Backend** | FastAPI (async) · SQLAlchemy 2.0 · Pydantic v2 |
-| **Database** | PostgreSQL (Supabase) |
-| **AI** | Anthropic Claude with tool-calling |
+| **Database** | PostgreSQL (Supabase) · pgvector |
+| **AI** | Anthropic Claude with tool-calling · RAG via pgvector + Voyage embeddings |
+| **Voice** | Web Speech API (browser-side, no per-minute cost) |
 | **Hosting** | Vercel (web) · Render (API) · Supabase (database) |
 
 ---
@@ -55,19 +56,38 @@ wrap responsively rather than scrolling sideways.
 
 ![Pipeline](docs/screenshots/pipeline.png)
 
-### AI Search
+### AI Search — a chat that remembers
 
-Plain-English search that calls a real database tool — not a chatbot guessing at
-listings.
+Plain-English search that calls real database tools — not a chatbot guessing at
+listings. Conversations are saved, so "what about the 2-beds?" resolves against
+what you asked three messages ago. The mic dictates straight into the box, and the
+words appear while you're still speaking.
 
-![AI Search](docs/screenshots/search.png)
+![AI Search](docs/screenshots/ai-search-voice.png)
 
 ### Listings
 
 Inventory with photos. Import live Dubai listings from Bayut by area, or upload
-your agency's own stock as CSV.
+your agency's own stock as CSV. Every card opens a full property page.
 
 ![Listings](docs/screenshots/listings.png)
+
+### Property detail — with the agent's number
+
+Full specs, amenities, description, and a contact card that dials, emails, or
+opens WhatsApp with the enquiry already written. *Price in context* positions the
+ask against recorded DLD sales, falling back to live asking prices when no
+transactions are loaded — and says which one it used.
+
+![Property detail](docs/screenshots/property-detail.png)
+
+### Brokers list, admins verify
+
+Agents submit their own stock. Nothing reaches search, the grid, or an AI answer
+until an admin approves it — and a rejection has to carry a reason the broker can
+act on.
+
+![Verification queue](docs/screenshots/review-reject.png)
 
 ### Market Trends
 
@@ -81,9 +101,9 @@ area, size-vs-price scatter, area comparison, and more.
 The whole app works at 390px. Below `lg` the sidebar collapses behind a hamburger
 drawer.
 
-| Dashboard | Today | Pipeline |
+| Dashboard | Today | Property detail |
 |---|---|---|
-| ![Dashboard on mobile](docs/screenshots/dashboard-mobile.png) | ![Today on mobile](docs/screenshots/today-mobile.png) | ![Pipeline on mobile](docs/screenshots/pipeline-mobile.png) |
+| ![Dashboard on mobile](docs/screenshots/dashboard-mobile.png) | ![Today on mobile](docs/screenshots/today-mobile.png) | ![Property detail on mobile](docs/screenshots/property-detail-mobile.png) |
 
 ---
 
@@ -97,18 +117,52 @@ drawer.
 - Tasks and reminders; deals with commission and payment tracking
 
 ### The AI brain
+
+Claude runs an agentic tool loop over four tools and decides which to reach for.
+Three hit SQL; only one is RAG — see [Why only one tool is RAG](#why-only-one-tool-is-rag).
+
+| Tool | Backed by | Answers |
+|---|---|---|
+| `search_properties` | SQL over your inventory | "3 bed in Dubai Marina under 5M with a pool" |
+| `market_check` | SQL aggregate over DLD transactions | "What's a 2-bed in JVC actually going for?" |
+| `find_comparables` | SQL, nearest by area/beds/size | "Justify this asking price to my buyer" |
+| `knowledge_lookup` | **RAG** — pgvector + Voyage embeddings | "What are the transfer costs for a non-resident?" |
+
+Plus the task features built on the same client:
+
 | Feature | What it does |
 |---|---|
-| **Search** | "3 bed in Dubai Marina under 5M with a pool" → Claude calls a tenant-scoped DB tool and explains the results |
 | **Match** | Ranks the best listings for a specific lead, with a reason per pick |
 | **Pitch** | Writes a ready-to-send WhatsApp or email message **in the client's language** |
 | **Marketing** | Portal listing, Instagram caption, ad variants, story script, email blast — returned as structured JSON |
 | **Follow-up draft** | Short, on-demand nudge for a lead who's gone quiet |
 
+**Chat with memory.** AI Search is a conversation, not a one-shot box. History is
+replayed from the database, never from the request body — a client can't inject
+turns the model will treat as its own prior statements.
+
+**Voice input.** Dictation runs on the browser's Web Speech API, so it adds no
+per-minute cost and doesn't depend on the Anthropic API being reachable. Interim
+words render as ghost text while you speak. Where the API is unavailable the mic
+isn't rendered at all — a control that does nothing is worse than no control.
+
 ### Inventory
 - Bayut import via RapidAPI, filtered to the community you ask for, auto-deduped
 - CSV upload for an agency's own listings, with a downloadable template
 - ~2,000 synthetic Dubai listings seeded on first run so the app is usable immediately
+- DLD transaction import (`python import_dld.py <csv>`), idempotent on DLD's own
+  transaction id
+
+### Broker listings & verification
+- Agents submit stock at **My Listings**; everything lands `pending`, admins included
+- Admins approve or reject at **Verify**, oldest first so the back of the queue
+  isn't starved
+- A rejection **requires a reason**, offered as one-tap presets — "rejected" with no
+  explanation gives the broker nothing to act on
+- Editing an approved listing returns it to the queue: an approval covers the
+  content that was reviewed, not the row forever
+- The moderation gate lives in `fetch_properties()`, so no endpoint and no AI tool
+  can surface pending stock by forgetting a filter
 
 ### Analytics
 - Dashboard: live stat tiles, Leaflet market map, lead trend, stage and type breakdowns
@@ -180,6 +234,48 @@ sequenceDiagram
     F-->>A: explanation + property cards
 ```
 
+### Why only one tool is RAG
+
+RAG is the default answer to "add knowledge to an LLM", and for three of these four
+tools it would be the wrong one. **Retrieval cannot aggregate.**
+
+Ask "what's the median price per sqft for a 2-bed in JVC?" against 5,000 DLD
+transactions. A vector search returns the ~20 chunks most similar to the question,
+the model averages those, and reports the result as *the market rate* — fluently,
+with no signal that it saw 0.4% of the data. Numeric predicates degrade the same
+way: "under 2M" becomes a similarity score rather than a filter, and counting is
+meaningless. The failure is silent and confident, which is the worst kind.
+
+So market questions run as deterministic SQL — `market_check` and `find_comparables`
+compute over every matching row, and use the **median** rather than the mean because
+one Palm villa drags an average across a whole community.
+
+RAG earns its place on exactly one surface: the knowledge base, where answers are
+prose, there is nothing to aggregate, and the signal genuinely is semantic —
+"transfer costs" should find a document that says "DLD registration fee" without
+sharing a keyword.
+
+```mermaid
+flowchart TD
+    Q["Agent's question"] --> C{"Claude picks a tool"}
+    C -->|"inventory"| S["search_properties<br/>SQL · tenant-scoped"]
+    C -->|"what's it worth?"| M["market_check<br/>SQL aggregate over DLD"]
+    C -->|"justify the price"| P["find_comparables<br/>SQL · nearest sales"]
+    C -->|"how does X work?"| K["knowledge_lookup<br/>RAG · pgvector"]
+    S --> A["Grounded answer"]
+    M --> A
+    P --> A
+    K --> A
+
+    why["Aggregates and filters must be exact,<br/>so they are SQL. Only prose is retrieved."]
+    K -.- why
+```
+
+When the knowledge base is unavailable, the tool returns a message that explicitly
+forbids answering from memory — an early version cheerfully volunteered "I know the
+standard fee structure is…", which is precisely the behaviour a grounded system
+exists to prevent.
+
 ### Lead lifecycle
 
 ```mermaid
@@ -214,7 +310,10 @@ erDiagram
     LEADS    ||--o{ TASKS : "follow-ups"
     LEADS    ||--o{ DEALS : "converts to"
     USERS    ||--o{ LEADS : "assigned"
+    USERS    ||--o{ PROPERTIES : "submits for review"
+    USERS    ||--o{ CONVERSATIONS : "chats"
     PROPERTIES ||--o{ DEALS : "sold in"
+    CONVERSATIONS ||--o{ CHAT_MESSAGES : "turns"
 
     AGENCIES { int id PK
                string name
@@ -222,7 +321,8 @@ erDiagram
     USERS    { int id PK
                int agency_id FK
                string email
-               string role }
+               string role
+               string phone "shown on their listings" }
     LEADS    { int id PK
                int agency_id FK
                string status
@@ -233,7 +333,26 @@ erDiagram
                int agency_id FK "NULL = shared"
                string location
                numeric price
-               string source "seed|bayut|csv|manual" }
+               string source "seed|bayut|csv|manual|broker"
+               string status "pending|approved|rejected"
+               int listed_by_id FK "submitting agent"
+               string rejection_reason }
+    CONVERSATIONS { int id PK
+               int user_id FK
+               string title }
+    CHAT_MESSAGES { int id PK
+               int conversation_id FK
+               string role "user|assistant"
+               text content }
+    DLD_TRANSACTIONS { int id PK
+               string area
+               numeric price_aed
+               numeric price_per_sqft
+               date transaction_date }
+    KNOWLEDGE_CHUNKS { int id PK
+               int agency_id FK "NULL = global"
+               text content
+               vector embedding "512-dim" }
     INTERACTIONS { int id PK
                int lead_id FK
                string channel
@@ -260,26 +379,35 @@ dubai-real-estate/
 │  │  ├─ main.py             app factory, routers, startup guards
 │  │  ├─ config.py           settings + production safety checks
 │  │  ├─ db.py               async engine, pooling (Supabase-pooler safe)
-│  │  ├─ models.py           Agency, User, Property, Lead, Interaction, Task, Deal
+│  │  ├─ models.py           Agency, User, Property, Lead, Interaction, Task,
+│  │  │                      Deal, Conversation, ChatMessage, DldTransaction
 │  │  ├─ security.py         bcrypt + JWT
 │  │  ├─ ratelimit.py        per-agency AI spend guard
 │  │  ├─ seed.py             demo agency + ~2,000 tiered-price listings
 │  │  ├─ ai/
-│  │  │  ├─ client.py        Anthropic client + manual tool-use loop
-│  │  │  └─ broker_agent.py  search · match · pitch · marketing
+│  │  │  ├─ client.py        Anthropic client, tool-use loop, prompt caching
+│  │  │  ├─ broker_agent.py  tool defs + the moderation gate on every read
+│  │  │  ├─ market.py        DLD aggregates (SQL, not RAG — and why)
+│  │  │  └─ knowledge.py     pgvector RAG: embed · search · format
 │  │  ├─ integrations/bayut.py
-│  │  └─ api/                auth, properties, leads, pipeline, tasks,
-│  │                         deals, analytics, briefing, ai, health
+│  │  └─ api/                auth, properties, listings, leads, pipeline,
+│  │                         tasks, deals, analytics, briefing, ai, chat, health
+│  ├─ import_dld.py          load Dubai Pulse transaction CSVs (idempotent)
+│  ├─ seed_knowledge.py      embed the starter knowledge base
 │  ├─ Dockerfile · Procfile · requirements.txt
 ├─ frontend/                 Next.js 14 App Router
 │  ├─ app/
 │  │  ├─ page.tsx            landing
 │  │  ├─ login/
 │  │  └─ (app)/              protected: today, dashboard, pipeline,
-│  │                         leads/[id], search, listings, market
-│  ├─ components/            Sidebar, PropertyCard, ui/*, dashboard/*, market/*
+│  │                         leads/[id], search, market,
+│  │                         listings + listings/[id],
+│  │                         my-listings (+ new, [id]/edit), review
+│  ├─ components/            Sidebar, PropertyCard, ListingForm, Markdown,
+│  │                         ui/*, dashboard/*, market/*
 │  └─ lib/
 │     ├─ api.ts              typed fetch wrapper, auto-logout on 401
+│     ├─ use-speech.ts       Web Speech API hook (dictation)
 │     └─ viz.ts              validated chart colour tokens
 ├─ telegram_bot/             Telegram front-end
 ├─ docs/                     setup guides + screenshots
@@ -298,6 +426,14 @@ Auth       POST /api/auth/signup · /login   GET /api/auth/me · /users
 Properties GET|POST /api/properties        GET /api/properties/{id}
            POST /api/properties/import/bayut
            POST /api/properties/import/csv  GET …/import/csv/template
+Listings   POST /api/listings               GET /api/listings/mine
+           GET  /api/listings/{id}          GET /api/listings/{id}/market
+           PATCH|DELETE /api/listings/{id}
+           GET  /api/listings/review/queue  GET /api/listings/review/counts
+           POST /api/listings/{id}/review   (admin: approve / reject + reason)
+Chat       GET  /api/chat/conversations     GET /api/chat/conversations/{id}
+           POST /api/chat/conversations/{id}/messages   (id=0 starts one)
+           PATCH|DELETE /api/chat/conversations/{id}
 Leads      GET|POST /api/leads             GET|PATCH|DELETE /api/leads/{id}
            GET|POST /api/leads/{id}/interactions
 Pipeline   GET  /api/pipeline
@@ -446,7 +582,16 @@ The AI bill is designed down, not discovered later:
 
 The Today briefing — the most-used page — is **100% rule-based and spends no
 tokens**. AI runs only when an agent explicitly asks for a draft, match, pitch, or
-marketing pack.
+marketing pack. Voice dictation runs in the browser, so it adds nothing per minute.
+
+**On prompt caching — measured, not assumed.** The cacheable prefix here (system
+prompt + four tool definitions) is ~1,300 tokens. Haiku 4.5 requires **4,096** before
+a cache write is allowed, so caching *does not activate at this size* — the code
+checks the model's minimum and refuses to mark a prefix that won't cache, rather
+than paying the write premium for nothing. Measuring also showed output is 51–92% of
+the cost of a typical request, so input caching was never the lever it looked like.
+The plumbing is in place and switches on automatically on a model with a lower
+threshold, or once the prompt grows past it.
 
 ---
 
@@ -475,10 +620,19 @@ Honest limitations, not oversights:
   email delivery are the next milestone.
 - **No Row-Level Security.** Tenant isolation is enforced in application queries
   only. Postgres RLS is the next hardening step.
-- **No automated tests.** Nothing catches a regression on deploy.
-- **`alembic/versions/` is empty.** The app relies on `AUTO_CREATE_TABLES`, which
-  creates tables but never alters them — the first schema change after launch needs
-  a real migration.
+- **No automated test suite in CI.** Features are verified before commit — the
+  listing flow ships with 28 API assertions over the full
+  submit → hide → reject → approve → edit cycle and 36 browser assertions at 390px
+  and 1440px — but nothing runs those on push yet.
+- **`alembic/versions/` is empty.** `AUTO_CREATE_TABLES` creates tables but never
+  alters them, so the listing columns went in as a hand-written `ALTER TABLE` pass.
+  That worked once; it isn't a migration story.
+- **The knowledge base is unvetted.** The starter chunks in `seed_knowledge.py` are
+  placeholders. Every fee and threshold must be replaced with an auditable source
+  before anyone relies on an answer.
+- **DLD data isn't bundled.** Dubai Pulse requires a signed-in download, so
+  `import_dld.py` is there but the table ships empty — which is why *Price in
+  context* currently falls back to asking prices and says so.
 - **Rate limiting is in-memory and per worker.** Accurate limits need Redis.
 - **Deals and tasks have no UI.** The APIs exist; only the backend is wired.
 - **The demo account is public.** `demo@demo.ae` / `demo12345` must be removed
@@ -489,11 +643,12 @@ Honest limitations, not oversights:
 ## Roadmap
 
 **Next** — outreach delivery (Telegram push, then WhatsApp Business API), email
-integration, RLS, a public lead-capture form that feeds the pipeline.
+integration, RLS, a real Alembic migration chain, photo upload for broker listings
+(currently a URL field), and CI running the assertion suites above.
 
-**Later** — DLD/Dubai Pulse transaction data, AI lead scoring, viewing scheduler with
-calendar sync, document generation, Stripe billing and per-agency branding, Arabic
-RTL support.
+**Later** — AI lead scoring, viewing scheduler with calendar sync, document
+generation, Stripe billing and per-agency branding, Arabic RTL support — and Arabic
+dictation, which the Web Speech API already supports by passing a different locale.
 
 ---
 
